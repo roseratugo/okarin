@@ -1,0 +1,43 @@
+{
+  "name": "@podcast-recorder/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop application for podcast recording built with Tauri and React",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri": "tauri",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist node_modules src-tauri/target"
+  },
+  "dependencies": {
+    "@podcast-recorder/proto": "workspace:*",
+    "@podcast-recorder/ui": "workspace:*",
+    "@tauri-apps/api": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "zustand": "^4.4.7",
+    "clsx": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.8",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
+}
