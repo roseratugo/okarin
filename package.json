@@ -19,18 +19,33 @@
     "build:signaling": "pnpm --filter @podcast-recorder/signaling build",
     "tauri:build": "pnpm --filter @podcast-recorder/desktop tauri:build",
     "tauri:dev": "pnpm --filter @podcast-recorder/desktop tauri:dev",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "clean": "pnpm -r clean && rimraf node_modules",
+    "lint": "eslint . --ext ts,tsx,js --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx,js --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx,css,html,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx,css,html,yml,yaml}\"",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean && rimraf node_modules",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
     "prettier": "^3.1.0",
     "rimraf": "^5.0.5",
     "turbo": "^1.11.2",
     "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": "eslint --fix",
+    "*.{ts,tsx,js,jsx,json,md,mdx,css,html,yml,yaml}": "prettier --write"
   }
 }

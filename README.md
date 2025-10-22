@@ -83,6 +83,7 @@ podcast-recorder/
 ## Technology Stack
 
 ### Frontend
+
 - **Tauri** - Desktop application framework
 - **React 18** - UI framework
 - **TypeScript** - Type safety
@@ -90,12 +91,14 @@ podcast-recorder/
 - **Tailwind CSS** - Styling
 
 ### Backend
+
 - **Rust** - Performance and reliability
 - **Axum** - Web framework
 - **Tokio** - Async runtime
 - **Tungstenite** - WebSocket support
 
 ### WebRTC
+
 - **P2P Mesh** - Direct connections for 2-4 participants
 - **LiveKit SFU** - Scalable solution for 5+ participants
 - **TURN Server** - NAT traversal with Coturn
