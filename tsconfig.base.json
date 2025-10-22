@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "paths": {
+      "@podcast-recorder/proto": ["./packages/proto/dist"],
+      "@podcast-recorder/proto/*": ["./packages/proto/dist/*"],
+      "@podcast-recorder/ui": ["./packages/ui/dist"],
+      "@podcast-recorder/ui/*": ["./packages/ui/dist/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", "*.config.js", "*.config.ts"]
+}
