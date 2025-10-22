@@ -41,8 +41,40 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm format:check
 
+  build-packages:
+    name: Build Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'apps/signaling'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build
+
   typecheck:
     name: Type Check
+    needs: build-packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +92,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build
 
       - name: Run TypeScript type check
         run: pnpm typecheck
@@ -160,12 +195,13 @@ jobs:
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, build, rust-lint, test]
+    needs: [lint, build-packages, typecheck, build, rust-lint, test]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.build-packages.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ] || \
              [ "${{ needs.rust-lint.result }}" != "success" ] || \
