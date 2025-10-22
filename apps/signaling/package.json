@@ -14,5 +14,7 @@
   "dependencies": {
     "@podcast-recorder/proto": "workspace:*"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "esbuild": "^0.25.11"
+  }
 }
