@@ -1,0 +1,13 @@
+# Rust clippy configuration
+# This file is used to configure clippy linting rules
+# Run: cargo clippy -- -D warnings
+
+# Disallow missing docs
+too-many-arguments-threshold = 7
+
+# Complexity
+cognitive-complexity-threshold = 30
+
+# Lint groups
+# allowed-expect-in-tests = true
+# allow-expect-in-main = false

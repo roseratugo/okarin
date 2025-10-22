@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@podcast-recorder/ui';
 import './App.css';
 
-function App() {
+function App(): JSX.Element {
   const [roomId, setRoomId] = useState('');
 
   return (
@@ -11,9 +11,7 @@ function App() {
 
       <div className="row">
         <div>
-          <Button onClick={() => console.log('Create room')}>
-            Create Room
-          </Button>
+          <Button onClick={() => console.log('Create room')}>Create Room</Button>
         </div>
         <div>
           <input
