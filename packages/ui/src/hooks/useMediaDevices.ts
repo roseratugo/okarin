@@ -14,6 +14,7 @@ export interface UseMediaDevicesReturn {
   videoInputDevices: MediaDeviceInfo[];
   loading: boolean;
   error: Error | null;
+  refresh: () => Promise<void>;
 }
 
 export function useMediaDevices(): UseMediaDevicesReturn {
