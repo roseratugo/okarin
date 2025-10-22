@@ -1,0 +1,36 @@
+{
+  "name": "podcast-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Professional podcast recording application with local high-quality recording",
+  "author": "Ugo ROSERAT",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.14.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter './apps/*' dev",
+    "dev:desktop": "pnpm --filter @podcast-recorder/desktop dev",
+    "dev:signaling": "pnpm --filter @podcast-recorder/signaling dev",
+    "build": "pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build && pnpm --filter @podcast-recorder/signaling build && pnpm --filter @podcast-recorder/desktop build",
+    "build:desktop": "pnpm --filter @podcast-recorder/desktop build",
+    "build:signaling": "pnpm --filter @podcast-recorder/signaling build",
+    "tauri:build": "pnpm --filter @podcast-recorder/desktop tauri:build",
+    "tauri:dev": "pnpm --filter @podcast-recorder/desktop tauri:dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean && rimraf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx,css,html,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx,css,html,yml,yaml}\"",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "prettier": "^3.1.0",
+    "rimraf": "^5.0.5",
+    "turbo": "^1.11.2",
+    "typescript": "^5.3.3"
+  }
+}
