@@ -1,0 +1,36 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Validate commit message format
+# Expected format: <gitmoji> <type>(<scope>): <subject>
+# Example: 📝 docs: add README
+# Uses all gitmoji emojis from https://gitmoji.dev
+
+commit_msg=$(cat "$1")
+
+# All gitmoji emojis supported
+GITMOJI_PATTERN='[🎨⚡🔥🐛🚑✨📝🚀💄🎉✅🔒🔐🔖🚨🚧💚⬇⬆📌👷📈♻➕➖🔧🔨🌐✏💩⏪🔀📦👽🚚📄💥🍱♿💡🍻💬🗃🔊🔇👥🚸🏗📱🤡🥚🙈📸⚗🔍🏷🌱🚩🥅💫🗑🛂🩹🧐⚰🧪👔🩺🧱🧑‍💻💸🧵🦺✈]'
+
+# Check if commit message matches conventional commit format with gitmoji
+if ! echo "$commit_msg" | grep -qE "^[[:space:]]*${GITMOJI_PATTERN} [a-z]+(\(.+\))?: .{1,}"; then
+  echo "❌ Commit message does not follow conventional commit format!"
+  echo ""
+  echo "Expected format: <gitmoji> <type>(<scope>): <subject>"
+  echo ""
+  echo "Common Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+  echo ""
+  echo "Examples:"
+  echo "  ✨ feat(auth): add login page"
+  echo "  🐛 fix(api): handle null response"
+  echo "  📝 docs: update README"
+  echo "  🔧 chore: update dependencies"
+  echo "  🔨 chore(scripts): add build script"
+  echo "  ♻️ refactor(core): simplify logic"
+  echo "  🚀 chore(release): version 1.0.0"
+  echo ""
+  echo "All gitmoji emojis are supported: https://gitmoji.dev"
+  echo ""
+  exit 1
+fi
+
+exit 0
