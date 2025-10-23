@@ -11,7 +11,7 @@ interface AppState {
   error: string | null;
 }
 
-function App(): JSX.Element {
+function App() {
   const [state, setState] = useState<AppState>({
     appName: '',
     appVersion: '',
