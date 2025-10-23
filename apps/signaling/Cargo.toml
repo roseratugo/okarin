@@ -6,12 +6,12 @@ authors = ["Ugo ROSERAT"]
 description = "WebRTC signaling server for podcast recorder"
 
 [dependencies]
-axum = { version = "0.7", features = ["ws", "macros"] }
-tower = { version = "0.4", features = ["full"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 tokio = { version = "1.35", features = ["full"] }
 futures = "0.3"
-tokio-tungstenite = "0.21"
+tokio-tungstenite = "0.28"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
@@ -19,10 +19,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 dotenvy = "0.15"
-jsonwebtoken = "9.2"
-rand = "0.8"
+jsonwebtoken = { version = "10.1", features = ["rust_crypto"] }
+rand = "0.9"
 
 [dev-dependencies]
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
