@@ -35,7 +35,7 @@ export async function createRoom(
   roomName: string,
   participantName: string
 ): Promise<CreateRoomResponse> {
-  const response = await fetch(`${SIGNALING_SERVER_URL}/rooms`, {
+  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export async function createRoom(
  * Join an existing room
  */
 export async function joinRoom(roomId: string, participantName: string): Promise<JoinRoomResponse> {
-  const response = await fetch(`${SIGNALING_SERVER_URL}/rooms/${roomId}/join`, {
+  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}/join`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export async function joinRoom(roomId: string, participantName: string): Promise
  * Get room information
  */
 export async function getRoomInfo(roomId: string): Promise<RoomInfo> {
-  const response = await fetch(`${SIGNALING_SERVER_URL}/rooms/${roomId}`);
+  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}`);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -95,7 +95,7 @@ export async function getRoomInfo(roomId: string): Promise<RoomInfo> {
  * Leave a room
  */
 export async function leaveRoom(roomId: string, token: string): Promise<void> {
-  const response = await fetch(`${SIGNALING_SERVER_URL}/rooms/${roomId}/leave`, {
+  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}/leave`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
