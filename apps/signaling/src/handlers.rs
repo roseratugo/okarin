@@ -7,6 +7,7 @@ use axum::{
   Json,
 };
 use serde_json::json;
+use tracing::info;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -20,6 +21,11 @@ pub async fn create_room(
   let room = state
     .storage
     .create_room(request.name, request.created_by, request.max_participants);
+
+  info!(
+    "Room created: {} (id: {}, max_participants: {})",
+    room.name, room.id, room.max_participants
+  );
 
   Ok(Json(CreateRoomResponse {
     room_id: room.id,
@@ -48,6 +54,13 @@ pub async fn join_room(
 
   let room = state.storage.get_room(&room_id)?;
 
+  info!(
+    "Participant {} joined room {} ({} participants)",
+    participant.id,
+    room_id,
+    room.participants.len()
+  );
+
   Ok(Json(JoinRoomResponse {
     token,
     participant_id: participant.id,
@@ -61,6 +74,7 @@ pub async fn delete_room(
   Json(requester_id): Json<String>,
 ) -> Result<StatusCode, AppError> {
   state.storage.delete_room(&room_id, &requester_id)?;
+  info!("Room {} deleted by {}", room_id, requester_id);
   Ok(StatusCode::NO_CONTENT)
 }
 

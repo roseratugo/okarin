@@ -12,19 +12,32 @@ pub struct Room {
   pub participants: HashMap<String, Participant>,
   pub max_participants: usize,
   pub ice_servers: Vec<IceServer>,
+  pub last_activity: DateTime<Utc>,
 }
 
 impl Room {
   pub fn new(name: String, created_by: String, max_participants: usize) -> Self {
+    let now = Utc::now();
     Self {
       id: Uuid::new_v4().to_string(),
       name,
-      created_at: Utc::now(),
+      created_at: now,
       created_by,
       participants: HashMap::new(),
       max_participants,
       ice_servers: Self::default_ice_servers(),
+      last_activity: now,
     }
+  }
+
+  pub fn update_activity(&mut self) {
+    self.last_activity = Utc::now();
+  }
+
+  pub fn is_inactive(&self, ttl_seconds: i64) -> bool {
+    let now = Utc::now();
+    let elapsed = now.signed_duration_since(self.last_activity);
+    elapsed.num_seconds() > ttl_seconds
   }
 
   fn default_ice_servers() -> Vec<IceServer> {

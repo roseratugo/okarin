@@ -93,10 +93,33 @@ impl RoomStorage {
     let participant_id = participant.id.clone();
 
     room.add_participant(participant.clone());
+    room.update_activity();
 
     let token = self.generate_token(room_id, &participant_id, &participant_name)?;
 
     Ok((participant, token))
+  }
+
+  pub fn update_room_activity(&self, room_id: &str) -> Result<(), StorageError> {
+    let mut rooms = self.rooms.write().unwrap();
+    let room = rooms.get_mut(room_id).ok_or(StorageError::RoomNotFound)?;
+    room.update_activity();
+    Ok(())
+  }
+
+  pub fn cleanup_inactive_rooms(&self, ttl_seconds: i64) -> Vec<String> {
+    let mut rooms = self.rooms.write().unwrap();
+    let inactive_room_ids: Vec<String> = rooms
+      .iter()
+      .filter(|(_, room)| room.is_inactive(ttl_seconds))
+      .map(|(id, _)| id.clone())
+      .collect();
+
+    for room_id in &inactive_room_ids {
+      rooms.remove(room_id);
+    }
+
+    inactive_room_ids
   }
 
   fn generate_token(

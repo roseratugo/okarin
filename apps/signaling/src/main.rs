@@ -32,7 +32,14 @@ async fn main() -> anyhow::Result<()> {
   );
   info!("Configuration loaded: {:?}", config);
 
-  let app = create_app();
+  let storage = RoomStorage::new();
+  let app = create_app(storage.clone());
+
+  let storage_clone = storage.clone();
+  let config_clone = config.clone();
+  tokio::spawn(async move {
+    cleanup_task(storage_clone, config_clone).await;
+  });
 
   let listener = tokio::net::TcpListener::bind(config.addr()).await?;
   let addr = listener.local_addr()?;
@@ -49,8 +56,7 @@ async fn main() -> anyhow::Result<()> {
   Ok(())
 }
 
-fn create_app() -> Router {
-  let storage = RoomStorage::new();
+fn create_app(storage: RoomStorage) -> Router {
   let state = AppState { storage };
 
   routes::create_router(state)
@@ -60,4 +66,29 @@ fn create_app() -> Router {
         .on_response(DefaultOnResponse::new().level(Level::INFO)),
     )
     .layer(CorsLayer::permissive())
+}
+
+async fn cleanup_task(storage: RoomStorage, config: Config) {
+  use tokio::time::{interval, Duration};
+
+  let mut interval = interval(Duration::from_secs(config.cleanup_interval_seconds));
+
+  info!(
+    "Starting room cleanup task (TTL: {}s, interval: {}s)",
+    config.room_ttl_seconds, config.cleanup_interval_seconds
+  );
+
+  loop {
+    interval.tick().await;
+
+    let removed_rooms = storage.cleanup_inactive_rooms(config.room_ttl_seconds);
+
+    if !removed_rooms.is_empty() {
+      info!(
+        "Cleaned up {} inactive room(s): {:?}",
+        removed_rooms.len(),
+        removed_rooms
+      );
+    }
+  }
 }
