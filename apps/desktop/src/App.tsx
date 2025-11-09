@@ -1,4 +1,4 @@
-import { useEffect, useState, ReactElement } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@podcast-recorder/ui';
 import './App.css';
@@ -11,7 +11,7 @@ interface AppState {
   error: string | null;
 }
 
-function App(): ReactElement {
+function App() {
   const [state, setState] = useState<AppState>({
     appName: '',
     appVersion: '',
