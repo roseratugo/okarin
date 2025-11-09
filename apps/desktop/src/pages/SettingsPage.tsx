@@ -1,110 +1,79 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
 import { invoke } from '@tauri-apps/api/core';
+import * as dialog from '@tauri-apps/plugin-dialog';
+import { useSettingsStore } from '../stores';
 import './SettingsPage.css';
-import { ReactElement } from 'react';
-
-interface Settings {
-  displayName: string;
-  defaultAudioInput: string;
-  defaultAudioOutput: string;
-  defaultVideoInput: string;
-  videoQuality: 'low' | 'medium' | 'high' | 'ultra';
-  audioQuality: 'low' | 'medium' | 'high';
-  autoRecordOnJoin: boolean;
-  saveRecordingsPath: string;
-  theme: 'light' | 'dark' | 'system';
-}
 
 export default function SettingsPage(): ReactElement {
   const navigate = useNavigate();
-  const [settings, setSettings] = useState<Settings>({
-    displayName: '',
-    defaultAudioInput: '',
-    defaultAudioOutput: '',
-    defaultVideoInput: '',
-    videoQuality: 'high',
-    audioQuality: 'high',
-    autoRecordOnJoin: false,
-    saveRecordingsPath: '',
-    theme: 'system',
-  });
+
+  const {
+    theme,
+    audioSettings,
+    videoSettings,
+    notifications,
+    autoStartRecording,
+    saveRecordingsPath,
+    setTheme,
+    updateAudioSettings,
+    updateVideoSettings,
+    updateNotifications,
+    setAutoStartRecording,
+    setSaveRecordingsPath,
+    resetSettings,
+  } = useSettingsStore();
 
   const [appVersion, setAppVersion] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    // Load settings from localStorage
-    const savedSettings = localStorage.getItem('appSettings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-
-    // Get app version
     invoke<string>('get_app_version').then(setAppVersion).catch(console.error);
   }, []);
 
-  const handleSettingChange = (key: keyof Settings, value: string | boolean) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  const handleSaveSettings = async () => {
-    setIsSaving(true);
+  const handleBrowseDirectory = useCallback(async () => {
     try {
-      // Save to localStorage
-      localStorage.setItem('appSettings', JSON.stringify(settings));
+      const selected = await dialog.open({
+        directory: true,
+        multiple: false,
+        defaultPath: saveRecordingsPath || undefined,
+      });
 
-      // Apply theme
-      if (settings.theme === 'dark') {
-        document.documentElement.classList.add('dark');
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else if (settings.theme === 'light') {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.setAttribute('data-theme', 'light');
-      } else {
-        // System preference
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.classList.toggle('dark', prefersDark);
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+      if (selected && typeof selected === 'string') {
+        setSaveRecordingsPath(selected);
+        setHasChanges(true);
       }
-
-      setHasChanges(false);
-      // TODO: Show success toast
     } catch (error) {
-      console.error('Failed to save settings:', error);
-      // TODO: Show error toast
-    } finally {
-      setIsSaving(false);
+      console.error('Failed to open directory picker:', error);
     }
-  };
+  }, [saveRecordingsPath, setSaveRecordingsPath]);
 
-  const handleResetSettings = () => {
-    const confirmReset = window.confirm('Are you sure you want to reset all settings to default?');
-    if (confirmReset) {
-      const defaultSettings: Settings = {
-        displayName: '',
-        defaultAudioInput: '',
-        defaultAudioOutput: '',
-        defaultVideoInput: '',
-        videoQuality: 'high',
-        audioQuality: 'high',
-        autoRecordOnJoin: false,
-        saveRecordingsPath: '',
-        theme: 'system',
-      };
-      setSettings(defaultSettings);
-      setHasChanges(true);
+  const handleResetSettings = useCallback(async () => {
+    const confirmed = await dialog.confirm(
+      'Are you sure you want to reset all settings to default?',
+      { title: 'Reset Settings', kind: 'warning' }
+    );
+
+    if (confirmed) {
+      resetSettings();
+      setHasChanges(false);
     }
-  };
+  }, [resetSettings]);
+
+  const handleSaveSettings = useCallback(() => {
+    setIsSaving(true);
+    setTimeout(() => {
+      setIsSaving(false);
+      setHasChanges(false);
+    }, 300);
+  }, []);
 
   return (
     <div className="settings-page">
       <div className="settings-container">
-        {/* Header */}
         <div className="settings-header">
           <div className="settings-header-content">
             <h1>Settings</h1>
@@ -115,36 +84,18 @@ export default function SettingsPage(): ReactElement {
           </Button>
         </div>
 
-        {/* Settings Sections */}
         <div className="settings-sections">
-          {/* User Profile */}
           <div className="settings-card">
-            <h2>User Profile</h2>
-            <div className="settings-form-group">
-              <label className="settings-label">Display Name</label>
-              <Input
-                type="text"
-                value={settings.displayName}
-                onChange={(e) => handleSettingChange('displayName', e.target.value)}
-                placeholder="Enter your display name"
-                className="input"
-              />
-              <p className="settings-help">
-                This name will be shown to other participants in recording rooms
-              </p>
-            </div>
-          </div>
-
-          {/* Audio & Video */}
-          <div className="settings-card">
-            <h2>Audio & Video</h2>
+            <h2>Audio Settings</h2>
             <div className="settings-grid">
-              {/* Audio Quality */}
               <div className="settings-form-group">
                 <label className="settings-label">Audio Quality</label>
                 <select
-                  value={settings.audioQuality}
-                  onChange={(e) => handleSettingChange('audioQuality', e.target.value)}
+                  value={audioSettings.quality}
+                  onChange={(e) => {
+                    updateAudioSettings({ quality: e.target.value as 'low' | 'medium' | 'high' });
+                    setHasChanges(true);
+                  }}
                   className="settings-select"
                 >
                   <option value="low">Low (64 kbps)</option>
@@ -153,12 +104,85 @@ export default function SettingsPage(): ReactElement {
                 </select>
               </div>
 
-              {/* Video Quality */}
+              <div className="settings-form-group">
+                <label className="settings-label">Sample Rate</label>
+                <select
+                  value={audioSettings.sampleRate}
+                  onChange={(e) => {
+                    updateAudioSettings({ sampleRate: Number(e.target.value) });
+                    setHasChanges(true);
+                  }}
+                  className="settings-select"
+                >
+                  <option value="44100">44.1 kHz</option>
+                  <option value="48000">48 kHz</option>
+                  <option value="96000">96 kHz</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="echoCancellation"
+                checked={audioSettings.echoCancellation}
+                onChange={(e) => {
+                  updateAudioSettings({ echoCancellation: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="echoCancellation" className="settings-checkbox-label">
+                Echo Cancellation
+              </label>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="noiseSuppression"
+                checked={audioSettings.noiseSuppression}
+                onChange={(e) => {
+                  updateAudioSettings({ noiseSuppression: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="noiseSuppression" className="settings-checkbox-label">
+                Noise Suppression
+              </label>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="autoGainControl"
+                checked={audioSettings.autoGainControl}
+                onChange={(e) => {
+                  updateAudioSettings({ autoGainControl: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="autoGainControl" className="settings-checkbox-label">
+                Auto Gain Control
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <h2>Video Settings</h2>
+            <div className="settings-grid">
               <div className="settings-form-group">
                 <label className="settings-label">Video Quality</label>
                 <select
-                  value={settings.videoQuality}
-                  onChange={(e) => handleSettingChange('videoQuality', e.target.value)}
+                  value={videoSettings.quality}
+                  onChange={(e) => {
+                    updateVideoSettings({
+                      quality: e.target.value as 'low' | 'medium' | 'high' | 'ultra',
+                    });
+                    setHasChanges(true);
+                  }}
                   className="settings-select"
                 >
                   <option value="low">Low (360p)</option>
@@ -167,37 +191,129 @@ export default function SettingsPage(): ReactElement {
                   <option value="ultra">Ultra (4K)</option>
                 </select>
               </div>
-            </div>
 
-            {/* Auto-record Toggle */}
+              <div className="settings-form-group">
+                <label className="settings-label">Frame Rate</label>
+                <select
+                  value={videoSettings.frameRate}
+                  onChange={(e) => {
+                    updateVideoSettings({ frameRate: Number(e.target.value) });
+                    setHasChanges(true);
+                  }}
+                  className="settings-select"
+                >
+                  <option value="15">15 FPS</option>
+                  <option value="24">24 FPS</option>
+                  <option value="30">30 FPS</option>
+                  <option value="60">60 FPS</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <h2>Notifications</h2>
             <div className="settings-checkbox-group">
               <input
                 type="checkbox"
-                id="autoRecord"
-                checked={settings.autoRecordOnJoin}
-                onChange={(e) => handleSettingChange('autoRecordOnJoin', e.target.checked)}
+                id="participantJoined"
+                checked={notifications.participantJoined}
+                onChange={(e) => {
+                  updateNotifications({ participantJoined: e.target.checked });
+                  setHasChanges(true);
+                }}
                 className="settings-checkbox"
               />
-              <label htmlFor="autoRecord" className="settings-checkbox-label">
-                Automatically start recording when joining a room
+              <label htmlFor="participantJoined" className="settings-checkbox-label">
+                Notify when participant joins
+              </label>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="participantLeft"
+                checked={notifications.participantLeft}
+                onChange={(e) => {
+                  updateNotifications({ participantLeft: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="participantLeft" className="settings-checkbox-label">
+                Notify when participant leaves
+              </label>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="recordingStarted"
+                checked={notifications.recordingStarted}
+                onChange={(e) => {
+                  updateNotifications({ recordingStarted: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="recordingStarted" className="settings-checkbox-label">
+                Notify when recording starts
+              </label>
+            </div>
+
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="soundEnabled"
+                checked={notifications.soundEnabled}
+                onChange={(e) => {
+                  updateNotifications({ soundEnabled: e.target.checked });
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="soundEnabled" className="settings-checkbox-label">
+                Play notification sounds
               </label>
             </div>
           </div>
 
-          {/* Recording Storage */}
           <div className="settings-card">
-            <h2>Recording Storage</h2>
+            <h2>Recording Settings</h2>
+            <div className="settings-checkbox-group">
+              <input
+                type="checkbox"
+                id="autoStartRecording"
+                checked={autoStartRecording}
+                onChange={(e) => {
+                  setAutoStartRecording(e.target.checked);
+                  setHasChanges(true);
+                }}
+                className="settings-checkbox"
+              />
+              <label htmlFor="autoStartRecording" className="settings-checkbox-label">
+                Automatically start recording when joining a room
+              </label>
+            </div>
+
             <div className="settings-form-group">
               <label className="settings-label">Save Recordings To</label>
               <div className="settings-input-group">
                 <Input
                   type="text"
-                  value={settings.saveRecordingsPath}
-                  onChange={(e) => handleSettingChange('saveRecordingsPath', e.target.value)}
+                  value={saveRecordingsPath || ''}
+                  onChange={(e) => {
+                    setSaveRecordingsPath(e.target.value);
+                    setHasChanges(true);
+                  }}
                   placeholder="/Users/username/Documents/Recordings"
                   className="input"
                 />
-                <Button variant="secondary" className="btn btn-secondary">
+                <Button
+                  variant="secondary"
+                  onClick={handleBrowseDirectory}
+                  className="btn btn-secondary"
+                >
                   Browse
                 </Button>
               </div>
@@ -205,14 +321,16 @@ export default function SettingsPage(): ReactElement {
             </div>
           </div>
 
-          {/* Appearance */}
           <div className="settings-card">
             <h2>Appearance</h2>
             <div className="settings-form-group">
               <label className="settings-label">Theme</label>
               <select
-                value={settings.theme}
-                onChange={(e) => handleSettingChange('theme', e.target.value)}
+                value={theme}
+                onChange={(e) => {
+                  setTheme(e.target.value as 'light' | 'dark' | 'system');
+                  setHasChanges(true);
+                }}
                 className="settings-select"
               >
                 <option value="system">System Default</option>
@@ -223,18 +341,19 @@ export default function SettingsPage(): ReactElement {
             </div>
           </div>
 
-          {/* About */}
           <div className="settings-card">
             <h2>About</h2>
             <div className="settings-about">
               <p>Podcast Recorder Desktop Application</p>
               {appVersion && <p>Version: {appVersion}</p>}
               <p>Built with Tauri, React, and TypeScript</p>
+              <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>
+                Settings are automatically saved using Tauri&apos;s secure storage
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="settings-actions">
           <Button variant="ghost" onClick={handleResetSettings} className="btn btn-ghost">
             Reset to Defaults
