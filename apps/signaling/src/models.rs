@@ -56,10 +56,6 @@ impl Room {
     true
   }
 
-  pub fn remove_participant(&mut self, participant_id: &str) -> bool {
-    self.participants.remove(participant_id).is_some()
-  }
-
   pub fn to_public_info(&self) -> RoomInfo {
     RoomInfo {
       id: self.id.clone(),
@@ -138,11 +134,3 @@ pub struct JoinRoomResponse {
   pub ice_servers: Vec<IceServer>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JoinToken {
-  pub room_id: String,
-  pub participant_id: String,
-  pub participant_name: String,
-  pub issued_at: DateTime<Utc>,
-  pub expires_at: DateTime<Utc>,
-}

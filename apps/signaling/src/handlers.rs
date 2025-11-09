@@ -72,7 +72,6 @@ impl IntoResponse for AppError {
     let (status, message) = match self.0 {
       StorageError::RoomNotFound => (StatusCode::NOT_FOUND, "Room not found"),
       StorageError::RoomFull => (StatusCode::CONFLICT, "Room is full"),
-      StorageError::ParticipantNotFound => (StatusCode::NOT_FOUND, "Participant not found"),
       StorageError::Unauthorized => (StatusCode::FORBIDDEN, "Unauthorized"),
       StorageError::TokenGenerationFailed(_) => {
         (StatusCode::INTERNAL_SERVER_ERROR, "Token generation failed")

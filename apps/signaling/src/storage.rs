@@ -12,8 +12,6 @@ pub enum StorageError {
   RoomNotFound,
   #[error("Room is full")]
   RoomFull,
-  #[error("Participant not found")]
-  ParticipantNotFound,
   #[error("Unauthorized")]
   Unauthorized,
   #[error("Token generation failed: {0}")]
@@ -101,21 +99,6 @@ impl RoomStorage {
     Ok((participant, token))
   }
 
-  pub fn leave_room(&self, room_id: &str, participant_id: &str) -> Result<(), StorageError> {
-    let mut rooms = self.rooms.write().unwrap();
-    let room = rooms.get_mut(room_id).ok_or(StorageError::RoomNotFound)?;
-
-    if !room.remove_participant(participant_id) {
-      return Err(StorageError::ParticipantNotFound);
-    }
-
-    if room.participants.is_empty() {
-      rooms.remove(room_id);
-    }
-
-    Ok(())
-  }
-
   fn generate_token(
     &self,
     room_id: &str,
@@ -139,11 +122,6 @@ impl RoomStorage {
       &EncodingKey::from_secret(self.jwt_secret.as_bytes()),
     )
     .map_err(|e| StorageError::TokenGenerationFailed(e.to_string()))
-  }
-
-  pub fn room_count(&self) -> usize {
-    let rooms = self.rooms.read().unwrap();
-    rooms.len()
   }
 }
 
