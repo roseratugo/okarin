@@ -5,6 +5,7 @@ import { Input } from '@podcast-recorder/ui';
 import { invoke } from '@tauri-apps/api/core';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../stores';
+import DeviceSelector from '../components/DeviceSelector';
 import './SettingsPage.css';
 
 export default function SettingsPage(): ReactElement {
@@ -209,6 +210,15 @@ export default function SettingsPage(): ReactElement {
                 </select>
               </div>
             </div>
+          </div>
+
+          <div className="settings-card">
+            <h2>Device Preferences</h2>
+            <p className="settings-help" style={{ marginBottom: '1rem' }}>
+              Select your preferred audio and video devices. These will be used by default when
+              joining rooms.
+            </p>
+            <DeviceSelector />
           </div>
 
           <div className="settings-card">

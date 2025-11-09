@@ -38,16 +38,14 @@ export default function DeviceSelector({ className = '' }: DeviceSelectorProps):
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      <div className="device-select-group">
-        <label htmlFor="audio-input" className="block text-sm font-medium mb-2">
-          Microphone
-        </label>
+    <div className={className}>
+      <div className="settings-group">
+        <label htmlFor="audio-input">Microphone</label>
         <select
           id="audio-input"
           value={selectedAudioInput || ''}
           onChange={(e) => setSelectedAudioInput(e.target.value || null)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-800 dark:border-gray-600"
+          className="device-select"
         >
           <option value="">Default</option>
           {audioInputDevices.map((device, index) => (
@@ -58,15 +56,13 @@ export default function DeviceSelector({ className = '' }: DeviceSelectorProps):
         </select>
       </div>
 
-      <div className="device-select-group">
-        <label htmlFor="audio-output" className="block text-sm font-medium mb-2">
-          Speaker
-        </label>
+      <div className="settings-group">
+        <label htmlFor="audio-output">Speaker</label>
         <select
           id="audio-output"
           value={selectedAudioOutput || ''}
           onChange={(e) => setSelectedAudioOutput(e.target.value || null)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-800 dark:border-gray-600"
+          className="device-select"
         >
           <option value="">Default</option>
           {audioOutputDevices.map((device, index) => (
@@ -77,15 +73,13 @@ export default function DeviceSelector({ className = '' }: DeviceSelectorProps):
         </select>
       </div>
 
-      <div className="device-select-group">
-        <label htmlFor="video-input" className="block text-sm font-medium mb-2">
-          Camera
-        </label>
+      <div className="settings-group">
+        <label htmlFor="video-input">Camera</label>
         <select
           id="video-input"
           value={selectedVideoInput || ''}
           onChange={(e) => setSelectedVideoInput(e.target.value || null)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-800 dark:border-gray-600"
+          className="device-select"
         >
           <option value="">Default</option>
           {videoInputDevices.map((device, index) => (

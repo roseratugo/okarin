@@ -74,20 +74,37 @@
 
 .settings-select {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-bg);
   color: var(--color-text-primary);
   font-size: 0.875rem;
-  transition: border-color 0.2s ease;
+  font-weight: 500;
+  transition: all 0.2s ease;
   cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+}
+
+.settings-select:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-bg-secondary);
 }
 
 .settings-select:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.settings-select option {
+  padding: 0.5rem;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
 }
 
 .settings-checkbox-group {
