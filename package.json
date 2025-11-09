@@ -12,7 +12,7 @@
   "packageManager": "pnpm@8.14.0",
   "scripts": {
     "dev": "pnpm --parallel --filter './apps/*' dev",
-    "dev:desktop": "pnpm --filter @podcast-recorder/desktop dev",
+    "dev:desktop": "pnpm --filter @podcast-recorder/desktop tauri:dev",
     "dev:signaling": "pnpm --filter @podcast-recorder/signaling dev",
     "build": "pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build && pnpm --filter @podcast-recorder/signaling build && pnpm --filter @podcast-recorder/desktop build",
     "build:desktop": "pnpm --filter @podcast-recorder/desktop build",
