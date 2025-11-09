@@ -1,5 +1,3 @@
-#!/bin/sh
-
 # Validate commit message format
 # Expected format: <gitmoji> <type>(<scope>): <subject>
 # Example: 📝 docs: add README

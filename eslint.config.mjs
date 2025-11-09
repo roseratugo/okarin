@@ -8,6 +8,7 @@ import prettierPlugin from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
+  // Ignore patterns
   {
     ignores: [
       '**/dist/**',
@@ -26,15 +27,20 @@ export default tseslint.config(
     ],
   },
 
+  // Base JavaScript config
   js.configs.recommended,
 
+  // TypeScript configs
   ...tseslint.configs.recommended,
 
+  // React config
   reactPlugin.configs.flat.recommended,
   reactPlugin.configs.flat['jsx-runtime'],
 
+  // Prettier config (disables conflicting rules)
   prettierConfig,
 
+  // Global settings and language options
   {
     languageOptions: {
       ecmaVersion: 2021,
@@ -57,6 +63,7 @@ export default tseslint.config(
     },
   },
 
+  // Custom rules and plugins for all files
   {
     files: ['**/*.{js,jsx,ts,tsx,mjs}'],
     plugins: {
@@ -65,15 +72,19 @@ export default tseslint.config(
       prettier: prettierPlugin,
     },
     rules: {
+      // React Hooks rules
       ...reactHooks.configs.recommended.rules,
 
+      // React Refresh
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
 
+      // Prettier
       'prettier/prettier': 'error',
 
+      // TypeScript rules
       '@typescript-eslint/explicit-module-boundary-types': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -85,9 +96,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
 
+      // React rules
       'react/prop-types': 'off',
       'react/display-name': 'off',
 
+      // General rules
       'no-console': 'off',
     },
   },
