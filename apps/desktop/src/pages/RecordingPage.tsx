@@ -281,8 +281,14 @@ export default function RecordingPage(): ReactElement {
 
               // Set initial track state
               if (track.kind === 'video') {
+                console.log(
+                  `Initial video track state for ${participantId}: ${track.enabled ? 'enabled' : 'disabled'}`
+                );
                 updateParticipantVideo(participantId, track.enabled);
               } else if (track.kind === 'audio') {
+                console.log(
+                  `Initial audio track state for ${participantId}: ${track.enabled ? 'enabled' : 'disabled'}`
+                );
                 updateParticipantMuted(participantId, !track.enabled);
               }
 
@@ -298,6 +304,9 @@ export default function RecordingPage(): ReactElement {
 
                 // Check if enabled state has changed
                 if (lastEnabledState !== track.enabled) {
+                  console.log(
+                    `[POLLING] Track state change detected for ${participantId}: ${track.kind} ${lastEnabledState} -> ${track.enabled}`
+                  );
                   lastEnabledState = track.enabled;
 
                   if (track.kind === 'video') {
