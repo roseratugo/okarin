@@ -228,10 +228,11 @@ export default function RecordingPage(): ReactElement {
         const roomInfo = JSON.parse(storedRoom) as {
           token?: string;
           userName?: string;
+          participantId?: string;
         };
 
-        if (!roomInfo.token) {
-          console.error('No JWT token found');
+        if (!roomInfo.token || !roomInfo.participantId) {
+          console.error('No JWT token or participant ID found');
           return;
         }
 
@@ -243,7 +244,7 @@ export default function RecordingPage(): ReactElement {
         const manager = new WebRTCManager(
           {
             roomId,
-            participantId: 'self', // Use actual participant ID from token
+            participantId: roomInfo.participantId,
             participantName: roomInfo.userName || 'Unknown',
             token: roomInfo.token,
             signalingServerUrl,

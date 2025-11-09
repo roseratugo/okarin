@@ -60,18 +60,19 @@ export default function JoinRoomPage(): ReactElement {
       sessionStorage.setItem(
         'currentRoom',
         JSON.stringify({
-          roomId: response.room_id,
-          roomName: response.room_name,
+          roomId: roomId.trim().toUpperCase(),
+          roomName: roomName || `Room ${roomId.toUpperCase()}`,
           userName: userName.trim(),
+          participantId: response.participant_id,
           token: response.token,
           isHost: false,
-          joinedAt: response.joined_at,
+          joinedAt: new Date().toISOString(),
           mediaSettings: settings,
         })
       );
 
       // Navigate to the recording room
-      navigate(`/recording/${response.room_id}`);
+      navigate(`/recording/${roomId.trim().toUpperCase()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
       setIsJoining(false);

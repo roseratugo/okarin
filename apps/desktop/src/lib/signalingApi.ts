@@ -6,16 +6,13 @@ const SIGNALING_SERVER_URL = import.meta.env.VITE_SIGNALING_SERVER_URL || 'http:
 
 export interface CreateRoomResponse {
   room_id: string;
-  room_name: string;
-  token: string;
   created_at: string;
 }
 
 export interface JoinRoomResponse {
-  room_id: string;
-  room_name: string;
   token: string;
-  joined_at: string;
+  participant_id: string;
+  ice_servers: { urls: string[]; username?: string; credential?: string }[];
 }
 
 export interface RoomInfo {
@@ -30,20 +27,16 @@ export interface RoomInfo {
 /**
  * Create a new room
  */
-export async function createRoom(
-  roomId: string,
-  roomName: string,
-  participantName: string
-): Promise<CreateRoomResponse> {
+export async function createRoom(roomName: string, createdBy: string): Promise<CreateRoomResponse> {
   const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      room_id: roomId,
-      room_name: roomName,
-      participant_name: participantName,
+      name: roomName,
+      created_by: createdBy,
+      max_participants: 4,
     }),
   });
 
