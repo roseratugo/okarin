@@ -32,9 +32,6 @@ export default function JoinRoomPage(): ReactElement {
     setError('');
 
     try {
-      // TODO: Verify room exists via WebRTC signaling server
-      // For now, we'll just proceed to show pre-join screen
-
       setShowPreJoin(true);
       setIsJoining(false);
     } catch (err) {
@@ -87,13 +84,11 @@ export default function JoinRoomPage(): ReactElement {
       )}
       <div className="join-room-page">
         <div className="room-card">
-          {/* Header */}
           <div className="room-card-header">
             <h1>Join Recording Room</h1>
             <p>Enter the Room ID to join an existing session</p>
           </div>
 
-          {/* Form */}
           <div className="room-form">
             <div className="form-group">
               <label htmlFor="roomId" className="form-label">
@@ -134,7 +129,6 @@ export default function JoinRoomPage(): ReactElement {
             )}
           </div>
 
-          {/* Actions */}
           <div className="room-actions">
             <Button
               variant="primary"
@@ -155,7 +149,6 @@ export default function JoinRoomPage(): ReactElement {
             </Button>
           </div>
 
-          {/* Help Section */}
           <div className="help-section">
             <p>Don&apos;t have a Room ID?</p>
             <p>

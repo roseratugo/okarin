@@ -203,8 +203,6 @@ async fn handle_socket(socket: WebSocket, claims: TokenClaims, state: AppState) 
   if let Ok(msg) = serde_json::to_string(&leave_message) {
     broadcast_to_room(&peers, &room_id, &participant_id, Message::Text(msg.into())).await;
   }
-
-  let _ = state.storage.delete_room(&room_id, &participant_id);
 }
 
 async fn broadcast_to_room(peers: &PeerMap, room_id: &str, exclude_id: &str, msg: Message) {

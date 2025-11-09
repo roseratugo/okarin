@@ -22,7 +22,6 @@ export default function AudioVisualizer({
     const ctx = canvas.getContext('2d');
     if (!ctx) return undefined;
 
-    // Set canvas size with devicePixelRatio for sharp rendering
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;

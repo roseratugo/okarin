@@ -97,9 +97,7 @@ export default function Navigation(): ReactElement {
     <nav className="nav">
       <div className="nav-container">
         <div className="nav-content">
-          {/* Logo and Desktop Nav */}
           <div className="nav-left">
-            {/* Logo */}
             <button onClick={() => navigate('/')} className="nav-logo">
               <div className="nav-logo-icon">
                 <svg fill="currentColor" viewBox="0 0 20 20">
@@ -109,7 +107,6 @@ export default function Navigation(): ReactElement {
               <span className="nav-logo-text">{appName}</span>
             </button>
 
-            {/* Desktop Navigation Items */}
             <div className="nav-items">
               {navItems.map((item) => (
                 <NavLink
@@ -126,9 +123,7 @@ export default function Navigation(): ReactElement {
             </div>
           </div>
 
-          {/* Right Side Actions */}
           <div className="nav-right">
-            {/* Active Room Indicator */}
             {hasActiveRoom && roomInfo && (
               <div className="room-indicator">
                 <span className="room-indicator-dot"></span>
@@ -144,12 +139,10 @@ export default function Navigation(): ReactElement {
               </div>
             )}
 
-            {/* Quick Actions */}
             <Button variant="primary" size="sm" onClick={() => navigate('/room/create')}>
               New Recording
             </Button>
 
-            {/* Mobile Menu Toggle */}
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="nav-menu-toggle">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMenuOpen ? (
@@ -173,7 +166,6 @@ export default function Navigation(): ReactElement {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <div className={`mobile-menu ${isMenuOpen ? 'open' : ''}`}>
         <div className="mobile-nav-items">
           {navItems.map((item) => (
@@ -190,7 +182,6 @@ export default function Navigation(): ReactElement {
             </NavLink>
           ))}
 
-          {/* Mobile Active Room Indicator */}
           {hasActiveRoom && roomInfo && (
             <div className="mobile-room-indicator">
               <div className="mobile-room-content">
@@ -212,7 +203,6 @@ export default function Navigation(): ReactElement {
             </div>
           )}
 
-          {/* Mobile Quick Action */}
           <div className="mobile-quick-action">
             <Button
               variant="primary"

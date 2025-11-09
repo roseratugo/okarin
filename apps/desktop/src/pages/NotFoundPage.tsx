@@ -9,16 +9,13 @@ export default function NotFoundPage(): ReactElement {
   return (
     <div className="notfound-page">
       <div className="notfound-content">
-        {/* 404 Icon */}
         <div className="notfound-404">404</div>
 
-        {/* Error Message */}
         <div className="notfound-message">
           <h1>Page Not Found</h1>
           <p>The page you&apos;re looking for doesn&apos;t exist or has been moved.</p>
         </div>
 
-        {/* Actions */}
         <div className="notfound-actions">
           <Button
             variant="primary"
@@ -57,7 +54,6 @@ export default function NotFoundPage(): ReactElement {
           </Button>
         </div>
 
-        {/* Help Text */}
         <div className="notfound-help">
           <p>If you believe this is an error, please contact support or check your connection.</p>
         </div>

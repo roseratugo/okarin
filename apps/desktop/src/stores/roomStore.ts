@@ -187,8 +187,9 @@ export const useRoomStore = create<RoomStore>()(
       }),
       {
         name: 'room-storage',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        storage: createStorageAdapter('room.json') as any, // Type incompatibility between StateStorage and PersistStorage
+        storage: createStorageAdapter('room.json') as unknown as Parameters<
+          typeof persist
+        >[1]['storage'],
         partialize: (state) => ({
           roomId: state.roomId,
           roomName: state.roomName,

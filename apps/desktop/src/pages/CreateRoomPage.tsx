@@ -71,13 +71,11 @@ export default function CreateRoomPage(): ReactElement {
       )}
       <div className="create-room-page">
         <div className="room-card">
-          {/* Header */}
           <div className="room-card-header">
             <h1>Create Recording Room</h1>
             <p>Start a new podcast recording session</p>
           </div>
 
-          {/* Form */}
           <div className="room-form">
             <div className="form-group">
               <label htmlFor="roomName" className="form-label">
@@ -116,7 +114,6 @@ export default function CreateRoomPage(): ReactElement {
             )}
           </div>
 
-          {/* Actions */}
           <div className="room-actions">
             <Button
               variant="primary"
@@ -184,7 +181,6 @@ export default function CreateRoomPage(): ReactElement {
             </div>
           )}
 
-          {/* Room Features Info */}
           <div className="room-info">
             <p>
               Once created, you&apos;ll receive a Room ID that others can use to join your recording
