@@ -9,7 +9,10 @@ mod websocket;
 use axum::Router;
 use config::Config;
 use handlers::AppState;
+use std::collections::HashMap;
+use std::sync::Arc;
 use storage::RoomStorage;
+use tokio::sync::RwLock;
 use tower_http::{
   cors::CorsLayer,
   trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -57,7 +60,8 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn create_app(storage: RoomStorage) -> Router {
-  let state = AppState { storage };
+  let peers = Arc::new(RwLock::new(HashMap::new()));
+  let state = AppState { storage, peers };
 
   routes::create_router(state)
     .layer(

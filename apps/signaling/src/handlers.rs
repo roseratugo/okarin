@@ -1,5 +1,6 @@
 use crate::models::{CreateRoomRequest, CreateRoomResponse, JoinRoomRequest, JoinRoomResponse};
 use crate::storage::{RoomStorage, StorageError};
+use crate::websocket::PeerMap;
 use axum::{
   extract::{Path, State},
   http::StatusCode,
@@ -12,6 +13,7 @@ use tracing::info;
 #[derive(Clone)]
 pub struct AppState {
   pub storage: RoomStorage,
+  pub peers: PeerMap,
 }
 
 pub async fn create_room(

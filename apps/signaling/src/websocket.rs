@@ -48,8 +48,8 @@ pub struct WsQuery {
   token: String,
 }
 
-type Tx = mpsc::UnboundedSender<Message>;
-type PeerMap = Arc<RwLock<HashMap<String, HashMap<String, Tx>>>>;
+pub type Tx = mpsc::UnboundedSender<Message>;
+pub type PeerMap = Arc<RwLock<HashMap<String, HashMap<String, Tx>>>>;
 
 pub async fn ws_handler(
   ws: WebSocketUpgrade,
@@ -89,15 +89,36 @@ async fn handle_socket(socket: WebSocket, claims: TokenClaims, state: AppState) 
   let room_id = claims.room_id.clone();
   let participant_id = claims.participant_id.clone();
 
-  let peers: PeerMap = Arc::new(RwLock::new(HashMap::new()));
+  let peers = state.peers.clone();
   let peers_clone = peers.clone();
 
+  // Get list of existing participants before adding ourselves
+  let existing_participants: Vec<(String, String)> = {
+    let peers_lock = peers.read().await;
+    if let Some(room_peers) = peers_lock.get(&room_id) {
+      // Get participant info from storage
+      if let Ok(room) = state.storage.get_room(&room_id) {
+        room_peers
+          .keys()
+          .filter_map(|pid| {
+            room.participants.get(pid).map(|p| (p.id.clone(), p.name.clone()))
+          })
+          .collect()
+      } else {
+        Vec::new()
+      }
+    } else {
+      Vec::new()
+    }
+  };
+
+  // Add ourselves to the peer map
   {
     let mut peers_lock = peers.write().await;
     peers_lock
       .entry(room_id.clone())
       .or_insert_with(HashMap::new)
-      .insert(participant_id.clone(), tx);
+      .insert(participant_id.clone(), tx.clone());
   }
 
   info!(
@@ -105,6 +126,24 @@ async fn handle_socket(socket: WebSocket, claims: TokenClaims, state: AppState) 
     participant_id, room_id
   );
 
+  // Send existing participants list to the new participant
+  for (existing_id, existing_name) in existing_participants {
+    let existing_participant_msg = WsMessage {
+      msg_type: MessageType::Join,
+      from: existing_id.clone(),
+      to: participant_id.clone(),
+      data: serde_json::json!({
+          "participant_id": existing_id,
+          "participant_name": existing_name,
+      }),
+    };
+
+    if let Ok(msg) = serde_json::to_string(&existing_participant_msg) {
+      let _ = tx.send(Message::Text(msg.into()));
+    }
+  }
+
+  // Broadcast our join to others
   let join_message = WsMessage {
     msg_type: MessageType::Join,
     from: participant_id.clone(),
