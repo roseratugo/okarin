@@ -11,8 +11,7 @@ commit_msg=$(cat "$1")
 GITMOJI_PATTERN='[🎨⚡🔥🐛🚑✨📝🚀💄🎉✅🔒🔐🔖🚨🚧💚⬇⬆📌👷📈♻➕➖🔧🔨🌐✏💩⏪🔀📦👽🚚📄💥🍱♿💡🍻💬🗃🔊🔇👥🚸🏗📱🤡🥚🙈📸⚗🔍🏷🌱🚩🥅💫🗑🛂🩹🧐⚰🧪👔🩺🧱🧑‍💻💸🧵🦺✈]'
 
 # Check if commit message matches conventional commit format with gitmoji
-# The ️? allows for optional variation selector after emojis
-if ! echo "$commit_msg" | grep -qE "^[[:space:]]*${GITMOJI_PATTERN}️? [a-z]+(\(.+\))?: .{1,}"; then
+if ! echo "$commit_msg" | grep -qE "^[[:space:]]*${GITMOJI_PATTERN} [a-z]+(\(.+\))?: .{1,}"; then
   echo "❌ Commit message does not follow conventional commit format!"
   echo ""
   echo "Expected format: <gitmoji> <type>(<scope>): <subject>"
