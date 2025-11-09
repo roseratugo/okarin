@@ -4,7 +4,7 @@
   "private": true,
   "description": "WebRTC signaling server built with Rust",
   "scripts": {
-    "dev": "cargo run",
+    "dev": "cargo watch -x run",
     "build": "cargo build --release",
     "test": "cargo test",
     "lint": "cargo clippy -- -D warnings",
