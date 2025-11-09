@@ -1,0 +1,12 @@
+.layout {
+  min-height: 100vh;
+  background-color: var(--color-bg-secondary);
+}
+
+.layout-main {
+  padding-top: 4rem; /* Height of navigation bar */
+}
+
+.layout-main.no-nav {
+  padding-top: 0;
+}

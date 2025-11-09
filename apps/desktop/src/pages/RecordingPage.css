@@ -1,0 +1,492 @@
+.recording-page {
+  min-height: 100vh;
+  background-color: #111827;
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.recording-header {
+  background-color: #1f2937;
+  border-bottom: 1px solid #374151;
+  padding: 1rem 1.5rem;
+}
+
+.recording-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recording-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.recording-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.recording-room-id {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recording-room-id code {
+  background-color: #374151;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.recording-copy-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.recording-copy-btn:hover {
+  color: white;
+}
+
+.recording-copy-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.recording-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.recording-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recording-indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  background-color: #ef4444;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.recording-time {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.875rem;
+}
+
+/* Main Content */
+.recording-main {
+  flex: 1;
+  display: flex;
+}
+
+/* Video Grid */
+.recording-video-section {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.recording-video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  max-width: 96rem;
+  margin: 0 auto;
+}
+
+.participant-card {
+  background-color: #1f2937;
+  aspect-ratio: 16 / 9;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 2px solid #374151;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.participant-card.speaking {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.participant-video {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.participant-video-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #374151;
+}
+
+.participant-avatar {
+  width: 6rem;
+  height: 6rem;
+  background-color: #4b5563;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #d1d5db;
+}
+
+.participant-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+  padding: 0.75rem;
+}
+
+.participant-info-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.participant-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.participant-host-badge {
+  background-color: #2563eb;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.participant-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.participant-status svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.status-muted {
+  color: #ef4444;
+}
+
+.status-speaking {
+  color: #10b981;
+}
+
+/* Sidebar */
+.recording-sidebar {
+  width: 20rem;
+  background-color: #1f2937;
+  border-left: 1px solid #374151;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid #374151;
+}
+
+.sidebar-header h2 {
+  font-weight: 600;
+  margin: 0;
+}
+
+.sidebar-content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s ease;
+}
+
+.participant-item:hover {
+  background-color: #374151;
+}
+
+.participant-item-avatar {
+  width: 2rem;
+  height: 2rem;
+  background-color: #4b5563;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.participant-item-info {
+  flex: 1;
+}
+
+.participant-item-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.participant-item-role {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.sidebar-invite {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid #374151;
+}
+
+.invite-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  padding: 0.75rem;
+  background-color: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 50;
+}
+
+.invite-dropdown-arrow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background-color: #1f2937;
+  border-left: 1px solid #374151;
+  border-top: 1px solid #374151;
+}
+
+.invite-dropdown-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #d1d5db;
+  margin-bottom: 0.5rem;
+}
+
+.invite-input-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.invite-input {
+  flex: 1;
+  background-color: #1f2937;
+  border: 1px solid #4b5563;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  color: #d1d5db;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  outline: none;
+}
+
+.invite-input:focus {
+  border-color: #3b82f6;
+}
+
+.invite-copy-btn {
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.invite-copy-btn:hover {
+  background-color: #2563eb;
+}
+
+.invite-copy-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Controls Bar */
+.recording-controls {
+  background-color: #1f2937;
+  border-top: 1px solid #374151;
+  padding: 1rem 1.5rem;
+}
+
+.recording-controls-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.control-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn-mute {
+  background-color: #374151;
+  color: white;
+}
+
+.control-btn-mute:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+.control-btn-mute.active {
+  background-color: #ef4444;
+}
+
+.control-btn-mute.active:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+.control-btn-video {
+  background-color: #374151;
+  color: white;
+}
+
+.control-btn-video:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+.control-btn-video.active {
+  background-color: #ef4444;
+}
+
+.control-btn-video.active:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+.control-btn-record {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.control-btn-record:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.control-btn-record.active {
+  background-color: #ef4444;
+}
+
+.control-btn-record.active:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+.control-btn-screen {
+  background-color: #374151;
+  color: white;
+}
+
+.control-btn-screen:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+.record-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background-color: white;
+}
+
+.record-dot.active {
+  background-color: #ef4444;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .recording-sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .recording-video-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recording-controls-content {
+    gap: 0.5rem;
+  }
+
+  .control-btn {
+    padding: 0.5rem;
+  }
+
+  .control-btn span {
+    display: none;
+  }
+}

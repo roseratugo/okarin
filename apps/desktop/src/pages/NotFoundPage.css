@@ -1,0 +1,52 @@
+.notfound-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: var(--color-bg-secondary);
+}
+
+.notfound-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 28rem;
+}
+
+.notfound-404 {
+  font-size: 6rem;
+  font-weight: bold;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.notfound-message h1 {
+  font-size: 1.875rem;
+  font-weight: bold;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.notfound-message p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.notfound-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.notfound-help {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.notfound-help p {
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}

@@ -1,0 +1,51 @@
+.join-room-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.room-id-input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  text-align: center;
+  font-size: 1.125rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.help-section {
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 1rem;
+}
+
+.help-section p {
+  font-size: 0.875rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.help-section p:first-child {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.help-section p:last-child {
+  color: var(--color-text-tertiary);
+}
+
+.help-section a {
+  color: var(--color-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.help-section a:hover {
+  text-decoration: underline;
+}
+
+.help-text {
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+  margin-top: 0.25rem;
+}
