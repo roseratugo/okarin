@@ -25,13 +25,14 @@ pub struct WsMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum MessageType {
   Join,
   Leave,
   Offer,
   Answer,
   Ice,
+  TrackState,
 }
 
 #[derive(Debug, Clone, Deserialize)]
