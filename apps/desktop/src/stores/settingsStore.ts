@@ -138,9 +138,8 @@ export const useSettingsStore = create<SettingsStore>()(
       }),
       {
         name: 'settings-storage',
-        storage: createStorageAdapter('settings.json') as unknown as Parameters<
-          typeof persist
-        >[1]['storage'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        storage: createStorageAdapter('settings.json') as any, // Type incompatibility between StateStorage and PersistStorage
         version: 1,
         migrate: (persistedState: unknown) => {
           return persistedState as SettingsState & SettingsActions;

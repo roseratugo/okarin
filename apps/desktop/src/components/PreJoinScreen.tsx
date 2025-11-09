@@ -225,6 +225,7 @@ export default function PreJoinScreen({
         </div>
 
         <div className="prejoin-content">
+          {/* Video Preview */}
           <div className="prejoin-video-section">
             <div className="video-preview">
               {videoEnabled ? (
@@ -237,6 +238,7 @@ export default function PreJoinScreen({
               )}
             </div>
 
+            {/* Media Controls */}
             <div className="media-controls">
               <button
                 className={`control-btn ${!audioEnabled ? 'disabled' : ''}`}
@@ -281,11 +283,13 @@ export default function PreJoinScreen({
               </button>
             </div>
 
+            {/* Audio Visualizer */}
             {audioEnabled && (
               <AudioVisualizer stream={stream} isActive={audioEnabled && stream !== null} />
             )}
           </div>
 
+          {/* Settings Section */}
           <div className="prejoin-settings">
             <div className="settings-group">
               <label>Camera</label>
@@ -321,6 +325,7 @@ export default function PreJoinScreen({
               </select>
             </div>
 
+            {/* Room Info */}
             <div className="room-info-preview">
               <p className="info-label">Joining as</p>
               <p className="info-value">{userName}</p>
@@ -336,6 +341,7 @@ export default function PreJoinScreen({
           </div>
         )}
 
+        {/* Actions */}
         <div className="prejoin-actions">
           <Button variant="ghost" onClick={handleCancel} className="btn btn-ghost">
             Cancel
