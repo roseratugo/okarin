@@ -1,37 +1,54 @@
-use axum::{response::Json, routing::get, Router};
-use serde_json::json;
-use tower_http::cors::CorsLayer;
-use tracing::info;
+mod config;
+mod routes;
+mod shutdown;
+
+use axum::Router;
+use config::Config;
+use tower_http::{
+  cors::CorsLayer,
+  trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+};
+use tracing::{info, Level};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
-async fn main() {
-  tracing_subscriber::fmt::init();
+async fn main() -> anyhow::Result<()> {
+  let config = Config::from_env()?;
 
-  let app = Router::new()
-    .route("/", get(root))
-    .route("/health", get(health))
-    .layer(CorsLayer::permissive());
-
-  let listener = tokio::net::TcpListener::bind("127.0.0.1:3001")
-    .await
-    .unwrap();
+  tracing_subscriber::registry()
+    .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level)))
+    .with(tracing_subscriber::fmt::layer())
+    .init();
 
   info!(
-    "Signaling server listening on {}",
-    listener.local_addr().unwrap()
+    "Starting Podcast Recorder Signaling Server v{}",
+    env!("CARGO_PKG_VERSION")
   );
+  info!("Configuration loaded: {:?}", config);
 
-  axum::serve(listener, app).await.unwrap();
+  let app = create_app();
+
+  let listener = tokio::net::TcpListener::bind(config.addr()).await?;
+  let addr = listener.local_addr()?;
+
+  info!("Server listening on {}", addr);
+  info!("Health check available at http://{}/health", addr);
+
+  axum::serve(listener, app)
+    .with_graceful_shutdown(shutdown::shutdown_signal())
+    .await?;
+
+  info!("Server shutdown complete");
+
+  Ok(())
 }
 
-async fn root() -> &'static str {
-  "Podcast Recorder Signaling Server"
-}
-
-async fn health() -> Json<serde_json::Value> {
-  Json(json!({
-      "status": "ok",
-      "service": "signaling",
-      "version": env!("CARGO_PKG_VERSION")
-  }))
+fn create_app() -> Router {
+  routes::create_router()
+    .layer(
+      TraceLayer::new_for_http()
+        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+        .on_response(DefaultOnResponse::new().level(Level::INFO)),
+    )
+    .layer(CorsLayer::permissive())
 }
