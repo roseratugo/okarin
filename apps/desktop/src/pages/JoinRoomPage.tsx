@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
+import { joinRoom, getRoomInfo } from '../lib/signalingApi';
 import './JoinRoomPage.css';
 import './CreateRoomPage.css'; // Reuse the same card styles
 
@@ -13,6 +14,7 @@ export default function JoinRoomPage(): ReactElement {
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
   const [showPreJoin, setShowPreJoin] = useState(false);
+  const [roomName, setRoomName] = useState('');
 
   const handleJoinRoom = async () => {
     // Validate inputs
@@ -32,6 +34,11 @@ export default function JoinRoomPage(): ReactElement {
     setError('');
 
     try {
+      // Check if room exists
+      const roomInfo = await getRoomInfo(roomId.trim().toUpperCase());
+      setRoomName(roomInfo.name);
+
+      // Show pre-join screen (actual join happens after media setup)
       setShowPreJoin(true);
       setIsJoining(false);
     } catch (err) {
@@ -41,22 +48,35 @@ export default function JoinRoomPage(): ReactElement {
     }
   };
 
-  const handleJoinWithSettings = (settings: JoinSettings) => {
-    // Store room info with media settings in session storage
-    sessionStorage.setItem(
-      'currentRoom',
-      JSON.stringify({
-        roomId: roomId.trim().toUpperCase(),
-        roomName: `Room ${roomId.trim().toUpperCase()}`,
-        userName: userName.trim(),
-        isHost: false,
-        joinedAt: new Date().toISOString(),
-        mediaSettings: settings,
-      })
-    );
+  const handleJoinWithSettings = async (settings: JoinSettings) => {
+    setIsJoining(true);
+    setError('');
 
-    // Navigate to the recording room
-    navigate(`/recording/${roomId.trim().toUpperCase()}`);
+    try {
+      // Join room on signaling server and get JWT token
+      const response = await joinRoom(roomId.trim().toUpperCase(), userName.trim());
+
+      // Store room info with token
+      sessionStorage.setItem(
+        'currentRoom',
+        JSON.stringify({
+          roomId: response.room_id,
+          roomName: response.room_name,
+          userName: userName.trim(),
+          token: response.token,
+          isHost: false,
+          joinedAt: response.joined_at,
+          mediaSettings: settings,
+        })
+      );
+
+      // Navigate to the recording room
+      navigate(`/recording/${response.room_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to join room');
+      setIsJoining(false);
+      setShowPreJoin(false);
+    }
   };
 
   const handleCancelPreJoin = () => {
@@ -76,7 +96,7 @@ export default function JoinRoomPage(): ReactElement {
     <>
       {showPreJoin && (
         <PreJoinScreen
-          roomName={`Room ${roomId.toUpperCase()}`}
+          roomName={roomName || `Room ${roomId.toUpperCase()}`}
           userName={userName}
           onJoin={handleJoinWithSettings}
           onCancel={handleCancelPreJoin}

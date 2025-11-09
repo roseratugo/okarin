@@ -622,6 +622,10 @@ export class PeerManager {
     return this.iceCandidateQueues.get(peerId)?.length || 0;
   }
 
+  hasPeer(peerId: string): boolean {
+    return this.peers.has(peerId);
+  }
+
   closeAll(): void {
     this.peers.forEach((_, peerId) => {
       this.removePeer(peerId);

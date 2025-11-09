@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
 import { invoke } from '@tauri-apps/api/core';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
+import { createRoom } from '../lib/signalingApi';
 import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
@@ -25,8 +26,11 @@ export default function CreateRoomPage(): ReactElement {
     setError('');
 
     try {
+      // Generate room ID locally
       const roomId = await invoke<string>('generate_room_id');
       setGeneratedRoomId(roomId);
+
+      // Show pre-join screen (actual room creation happens after media setup)
       setShowPreJoin(true);
       setIsCreating(false);
     } catch {
@@ -36,20 +40,35 @@ export default function CreateRoomPage(): ReactElement {
   }, [roomName, userName]);
 
   const handleJoinWithSettings = useCallback(
-    (settings: JoinSettings) => {
-      sessionStorage.setItem(
-        'currentRoom',
-        JSON.stringify({
-          roomId: generatedRoomId,
-          roomName: roomName.trim(),
-          userName: userName.trim(),
-          isHost: true,
-          createdAt: new Date().toISOString(),
-          mediaSettings: settings,
-        })
-      );
+    async (settings: JoinSettings) => {
+      setIsCreating(true);
+      setError('');
 
-      navigate(`/recording/${generatedRoomId}`);
+      try {
+        // Create room on signaling server and get JWT token
+        const response = await createRoom(generatedRoomId, roomName.trim(), userName.trim());
+
+        // Store room info with token
+        sessionStorage.setItem(
+          'currentRoom',
+          JSON.stringify({
+            roomId: response.room_id,
+            roomName: response.room_name,
+            userName: userName.trim(),
+            token: response.token,
+            isHost: true,
+            createdAt: response.created_at,
+            mediaSettings: settings,
+          })
+        );
+
+        // Navigate to recording page
+        navigate(`/recording/${response.room_id}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create room');
+        setIsCreating(false);
+        setShowPreJoin(false);
+      }
     },
     [generatedRoomId, roomName, userName, navigate]
   );

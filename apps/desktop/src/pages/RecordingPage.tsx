@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button, { IconButton } from '../components/Button';
 import { useRoomStore, useRecordingStore } from '../stores';
+import { WebRTCManager } from '../lib/WebRTCManager';
 import './RecordingPage.css';
 import type { ReactElement } from 'react';
 
@@ -26,6 +27,9 @@ export default function RecordingPage(): ReactElement {
     setRoom,
     leaveRoom,
     setLocalStream,
+    addParticipant,
+    removeParticipant,
+    updateParticipant,
     updateParticipantSpeaking,
     updateParticipantMuted,
     updateParticipantVideo,
@@ -43,6 +47,8 @@ export default function RecordingPage(): ReactElement {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const inviteDropdownRef = useRef<HTMLDivElement>(null);
+  const webrtcManagerRef = useRef<WebRTCManager | null>(null);
+  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   const setupVoiceDetection = useCallback(
     (stream: MediaStream) => {
@@ -205,6 +211,106 @@ export default function RecordingPage(): ReactElement {
       }
     };
   }, [localStream]);
+
+  // Initialize WebRTC Manager
+  useEffect(() => {
+    if (!roomId || !localStream) return;
+
+    const initializeWebRTC = async () => {
+      try {
+        // Get JWT token from CreateRoomPage or JoinRoomPage
+        const storedRoom = sessionStorage.getItem('currentRoom');
+        if (!storedRoom) {
+          console.error('No room token found');
+          return;
+        }
+
+        const roomInfo = JSON.parse(storedRoom) as {
+          token?: string;
+          userName?: string;
+        };
+
+        if (!roomInfo.token) {
+          console.error('No JWT token found');
+          return;
+        }
+
+        // Use environment variable or default to localhost
+        const signalingServerUrl =
+          import.meta.env.VITE_SIGNALING_SERVER_URL || 'ws://localhost:3000';
+
+        // Create WebRTC Manager
+        const manager = new WebRTCManager(
+          {
+            roomId,
+            participantId: 'self', // Use actual participant ID from token
+            participantName: roomInfo.userName || 'Unknown',
+            token: roomInfo.token,
+            signalingServerUrl,
+            iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
+            maxPeers: 4,
+          },
+          {
+            onParticipantJoined: (participantId, participantName) => {
+              console.log(`Participant joined: ${participantId} (${participantName})`);
+              addParticipant({
+                id: participantId,
+                name: participantName,
+                isHost: false,
+                isSpeaking: false,
+                isMuted: false,
+                isVideoOn: true,
+              });
+            },
+
+            onParticipantLeft: (participantId) => {
+              console.log(`Participant left: ${participantId}`);
+              removeParticipant(participantId);
+              remoteVideoRefs.current.delete(participantId);
+            },
+
+            onRemoteTrack: (participantId, track, stream) => {
+              console.log(`Remote track received from ${participantId}: ${track.kind}`);
+
+              // Get or create video element for this participant
+              const videoElement = remoteVideoRefs.current.get(participantId);
+              if (videoElement && track.kind === 'video') {
+                videoElement.srcObject = stream;
+              }
+
+              // Update participant with stream
+              updateParticipant(participantId, { stream });
+            },
+
+            onConnectionStateChange: (participantId, state) => {
+              console.log(`Connection state for ${participantId}: ${state}`);
+            },
+
+            onError: (error) => {
+              console.error('WebRTC error:', error);
+            },
+          }
+        );
+
+        webrtcManagerRef.current = manager;
+
+        // Initialize and connect
+        await manager.initialize(localStream);
+        console.log('WebRTC Manager initialized');
+      } catch (error) {
+        console.error('Failed to initialize WebRTC:', error);
+      }
+    };
+
+    initializeWebRTC();
+
+    return () => {
+      if (webrtcManagerRef.current) {
+        webrtcManagerRef.current.disconnect();
+        webrtcManagerRef.current = null;
+      }
+    };
+  }, [roomId, localStream, addParticipant, removeParticipant, updateParticipant]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -420,7 +526,13 @@ export default function RecordingPage(): ReactElement {
               >
                 <div className="participant-video">
                   <video
-                    ref={participant.id === 'self' ? videoRef : null}
+                    ref={(el) => {
+                      if (participant.id === 'self' && el) {
+                        videoRef.current = el;
+                      } else if (el) {
+                        remoteVideoRefs.current.set(participant.id, el);
+                      }
+                    }}
                     autoPlay
                     playsInline
                     muted={participant.id === 'self'}
