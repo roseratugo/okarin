@@ -1,14 +1,9 @@
 mod config;
-mod handlers;
-mod models;
 mod routes;
 mod shutdown;
-mod storage;
 
 use axum::Router;
 use config::Config;
-use handlers::AppState;
-use storage::RoomStorage;
 use tower_http::{
   cors::CorsLayer,
   trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -49,10 +44,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn create_app() -> Router {
-  let storage = RoomStorage::new();
-  let state = AppState { storage };
-
-  routes::create_router(state)
+  routes::create_router()
     .layer(
       TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
