@@ -11,6 +11,7 @@ import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import TestPreJoin from './pages/TestPreJoin';
 import MediaTest from './pages/MediaTest';
+import TestPeerManager from './pages/TestPeerManager';
 import { useSettingsStore } from './stores';
 
 function App(): ReactElement {
@@ -55,6 +56,7 @@ function App(): ReactElement {
           <>
             <Route path="/test-prejoin" element={<TestPreJoin />} />
             <Route path="/test-media" element={<MediaTest />} />
+            <Route path="/test-peer-manager" element={<TestPeerManager />} />
           </>
         )}
 
