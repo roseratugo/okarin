@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
@@ -9,7 +9,11 @@ import './CreateRoomPage.css'; // Reuse the same card styles
 
 export default function JoinRoomPage(): ReactElement {
   const navigate = useNavigate();
-  const [roomId, setRoomId] = useState('');
+  const [searchParams] = useSearchParams();
+
+  // Initialize roomId from URL query params if present
+  const roomIdFromUrl = searchParams.get('roomId');
+  const [roomId, setRoomId] = useState(roomIdFromUrl || '');
   const [userName, setUserName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
@@ -23,19 +27,12 @@ export default function JoinRoomPage(): ReactElement {
       return;
     }
 
-    // Validate room ID format
-    const roomIdPattern = /^[A-Z0-9]{6}$/;
-    if (!roomIdPattern.test(roomId.trim().toUpperCase())) {
-      setError('Invalid Room ID format. It should be 6 characters (letters and numbers)');
-      return;
-    }
-
     setIsJoining(true);
     setError('');
 
     try {
-      // Check if room exists
-      const roomInfo = await getRoomInfo(roomId.trim().toUpperCase());
+      // Check if room exists (room ID is already a UUID from server)
+      const roomInfo = await getRoomInfo(roomId.trim());
       setRoomName(roomInfo.name);
 
       // Show pre-join screen (actual join happens after media setup)
@@ -54,14 +51,14 @@ export default function JoinRoomPage(): ReactElement {
 
     try {
       // Join room on signaling server and get JWT token
-      const response = await joinRoom(roomId.trim().toUpperCase(), userName.trim());
+      const response = await joinRoom(roomId.trim(), userName.trim());
 
       // Store room info with token
       sessionStorage.setItem(
         'currentRoom',
         JSON.stringify({
-          roomId: roomId.trim().toUpperCase(),
-          roomName: roomName || `Room ${roomId.toUpperCase()}`,
+          roomId: roomId.trim(),
+          roomName: roomName || `Room ${roomId}`,
           userName: userName.trim(),
           participantId: response.participant_id,
           token: response.token,
@@ -72,7 +69,7 @@ export default function JoinRoomPage(): ReactElement {
       );
 
       // Navigate to the recording room
-      navigate(`/recording/${roomId.trim().toUpperCase()}`);
+      navigate(`/recording/${roomId.trim()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
       setIsJoining(false);
@@ -82,15 +79,6 @@ export default function JoinRoomPage(): ReactElement {
 
   const handleCancelPreJoin = () => {
     setShowPreJoin(false);
-  };
-
-  const formatRoomId = (value: string) => {
-    // Auto-format room ID to uppercase and limit to 6 characters
-    const formatted = value
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
-      .slice(0, 6);
-    setRoomId(formatted);
   };
 
   return (
@@ -118,14 +106,13 @@ export default function JoinRoomPage(): ReactElement {
               <Input
                 id="roomId"
                 type="text"
-                placeholder="e.g., ABC123"
+                placeholder="e.g., 38d50f38-4ef4-4695-8d20-72443bcb7af7"
                 value={roomId}
-                onChange={(e) => formatRoomId(e.target.value)}
+                onChange={(e) => setRoomId(e.target.value)}
                 disabled={isJoining}
                 className="input room-id-input"
-                maxLength={6}
               />
-              <p className="help-text">Ask your host for the 6-character Room ID</p>
+              <p className="help-text">Ask your host for the Room ID</p>
             </div>
 
             <div className="form-group">
