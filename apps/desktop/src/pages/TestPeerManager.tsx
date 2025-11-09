@@ -7,6 +7,7 @@ type PeerInfo = {
   id: string;
   connectionState: string;
   iceConnectionState: string;
+  negotiationState: string;
   hasVideo: boolean;
   hasAudio: boolean;
 };
@@ -45,6 +46,7 @@ export default function TestPeerManager(): ReactElement {
             id: peerId,
             connectionState: 'new',
             iceConnectionState: 'new',
+            negotiationState: 'stable',
             hasVideo: false,
             hasAudio: false,
           };
@@ -95,6 +97,19 @@ export default function TestPeerManager(): ReactElement {
 
       onNegotiationNeeded: (peerId: string) => {
         addLog(`🤝 Negotiation needed for ${peerId}`);
+      },
+
+      onNegotiationStateChange: (peerId: string, state: string) => {
+        addLog(`🔄 Negotiation state for ${peerId}: ${state}`);
+        setPeers((prev) => {
+          const newPeers = new Map(prev);
+          const peer = newPeers.get(peerId);
+          if (peer) {
+            peer.negotiationState = state;
+            newPeers.set(peerId, peer);
+          }
+          return newPeers;
+        });
       },
 
       onError: (peerId: string, error: Error) => {
@@ -157,6 +172,7 @@ export default function TestPeerManager(): ReactElement {
           id: testPeerId,
           connectionState: peerConnection.connectionState,
           iceConnectionState: peerConnection.iceConnectionState,
+          negotiationState: 'stable',
           hasVideo: false,
           hasAudio: false,
         });
@@ -193,6 +209,22 @@ export default function TestPeerManager(): ReactElement {
     });
     remoteVideoRefs.current.delete(peerId);
     addLog(`🗑️  Removed peer ${peerId}`);
+  };
+
+  const renegotiatePeer = async (peerId: string) => {
+    if (!peerManager) {
+      addLog('❌ PeerManager not initialized');
+      return;
+    }
+
+    try {
+      addLog(`🔄 Starting renegotiation for ${peerId}`);
+      const offer = await peerManager.renegotiate(peerId);
+      addLog(`✅ Renegotiation offer created for ${peerId}`);
+      addLog(`SDP: ${offer.sdp?.substring(0, 100)}...`);
+    } catch (error) {
+      addLog(`❌ Failed to renegotiate: ${error}`);
+    }
   };
 
   const closeAllPeers = () => {
@@ -273,13 +305,22 @@ export default function TestPeerManager(): ReactElement {
                 <div key={peer.id} className="peer-card">
                   <div className="peer-header">
                     <h3>{peer.id}</h3>
-                    <button
-                      onClick={() => removePeer(peer.id)}
-                      className="close-btn"
-                      title="Remove peer"
-                    >
-                      ✕
-                    </button>
+                    <div className="peer-actions">
+                      <button
+                        onClick={() => renegotiatePeer(peer.id)}
+                        className="renegotiate-btn"
+                        title="Renegotiate connection"
+                      >
+                        🔄
+                      </button>
+                      <button
+                        onClick={() => removePeer(peer.id)}
+                        className="close-btn"
+                        title="Remove peer"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                   <video
                     ref={(el) => {
@@ -300,6 +341,12 @@ export default function TestPeerManager(): ReactElement {
                       <span>ICE:</span>
                       <span className={`state ${peer.iceConnectionState}`}>
                         {peer.iceConnectionState}
+                      </span>
+                    </div>
+                    <div className="info-row">
+                      <span>Negotiation:</span>
+                      <span className={`state ${peer.negotiationState}`}>
+                        {peer.negotiationState}
                       </span>
                     </div>
                     <div className="info-row">

@@ -143,6 +143,12 @@
   color: var(--text-primary);
 }
 
+.peer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.renegotiate-btn,
 .close-btn {
   background: transparent;
   border: none;
@@ -152,6 +158,11 @@
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   transition: all 0.2s;
+}
+
+.renegotiate-btn:hover {
+  background: var(--primary);
+  color: white;
 }
 
 .close-btn:hover {
@@ -204,7 +215,8 @@
 }
 
 .state.connected,
-.state.completed {
+.state.completed,
+.state.stable {
   background: #10b981;
   color: white;
 }
@@ -218,6 +230,24 @@
 .state.closed {
   background: #ef4444;
   color: white;
+}
+
+.state.creating-offer,
+.state.creating-answer,
+.state.waiting-for-answer {
+  background: #8b5cf6;
+  color: white;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .logs-section {
