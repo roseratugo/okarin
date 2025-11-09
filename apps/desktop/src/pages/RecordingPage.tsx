@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button, { IconButton } from '../components/Button';
+import { useRoomStore, useRecordingStore } from '../stores';
 import './RecordingPage.css';
 import type { ReactElement } from 'react';
 
@@ -10,44 +11,31 @@ const SPEAKING_THRESHOLD = 25;
 // Update interval for voice detection (ms) - throttle to ~10 updates/sec instead of 60fps
 const VOICE_UPDATE_INTERVAL = 100;
 
-interface MediaSettings {
-  videoEnabled: boolean;
-  audioEnabled: boolean;
-  selectedVideoDevice: string;
-  selectedAudioDevice: string;
-}
-
-interface RoomInfo {
-  roomId: string;
-  roomName: string;
-  userName: string;
-  isHost: boolean;
-  createdAt?: string;
-  joinedAt?: string;
-  mediaSettings?: MediaSettings;
-}
-
-interface Participant {
-  id: string;
-  name: string;
-  isHost: boolean;
-  isSpeaking: boolean;
-  isMuted: boolean;
-  isVideoOn: boolean;
-}
-
 export default function RecordingPage(): ReactElement {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { roomId: urlRoomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
 
-  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
+  // Zustand stores
+  const {
+    roomId,
+    roomName,
+    isHost,
+    participants,
+    mediaSettings,
+    localStream,
+    setRoom,
+    leaveRoom,
+    setLocalStream,
+    updateParticipantSpeaking,
+    updateParticipantMuted,
+    updateParticipantVideo,
+  } = useRoomStore();
+
+  const { isRecording, recordingTime, startRecording, stopRecording, incrementRecordingTime } =
+    useRecordingStore();
+
+  // Local UI state
   const [isLeaving, setIsLeaving] = useState(false);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [showInviteDropdown, setShowInviteDropdown] = useState(false);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -56,50 +44,53 @@ export default function RecordingPage(): ReactElement {
   const animationFrameRef = useRef<number | undefined>(undefined);
   const inviteDropdownRef = useRef<HTMLDivElement>(null);
 
-  const setupVoiceDetection = useCallback((stream: MediaStream) => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-    }
+  const setupVoiceDetection = useCallback(
+    (stream: MediaStream) => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
 
-    try {
-      audioContextRef.current = new AudioContext();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 512;
-      analyserRef.current.smoothingTimeConstant = 0.8;
+      try {
+        audioContextRef.current = new AudioContext();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 512;
+        analyserRef.current.smoothingTimeConstant = 0.8;
 
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      source.connect(analyserRef.current);
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        source.connect(analyserRef.current);
 
-      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-      let lastUpdateTime = 0;
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        let lastUpdateTime = 0;
 
-      const checkVoiceActivity = (timestamp: number) => {
-        if (!analyserRef.current) return;
+        const checkVoiceActivity = (timestamp: number) => {
+          if (!analyserRef.current) return;
 
-        if (timestamp - lastUpdateTime < VOICE_UPDATE_INTERVAL) {
+          if (timestamp - lastUpdateTime < VOICE_UPDATE_INTERVAL) {
+            animationFrameRef.current = requestAnimationFrame(checkVoiceActivity);
+            return;
+          }
+
+          lastUpdateTime = timestamp;
+          analyserRef.current.getByteFrequencyData(dataArray);
+
+          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+          const isSpeaking = average > SPEAKING_THRESHOLD;
+
+          updateParticipantSpeaking('self', isSpeaking);
+
           animationFrameRef.current = requestAnimationFrame(checkVoiceActivity);
-          return;
-        }
-
-        lastUpdateTime = timestamp;
-        analyserRef.current.getByteFrequencyData(dataArray);
-
-        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-        const isSpeaking = average > SPEAKING_THRESHOLD;
-
-        setParticipants((prev) => prev.map((p) => (p.id === 'self' ? { ...p, isSpeaking } : p)));
+        };
 
         animationFrameRef.current = requestAnimationFrame(checkVoiceActivity);
-      };
-
-      animationFrameRef.current = requestAnimationFrame(checkVoiceActivity);
-    } catch (error) {
-      console.error('Error setting up voice detection:', error);
-    }
-  }, []);
+      } catch (error) {
+        console.error('Error setting up voice detection:', error);
+      }
+    },
+    [updateParticipantSpeaking]
+  );
 
   const cleanupVoiceDetection = useCallback(() => {
     if (animationFrameRef.current) {
@@ -111,53 +102,53 @@ export default function RecordingPage(): ReactElement {
   }, []);
 
   useEffect(() => {
-    const storedRoom = sessionStorage.getItem('currentRoom');
-    if (storedRoom) {
-      const info = JSON.parse(storedRoom) as RoomInfo;
+    if (!roomId || roomId !== urlRoomId) {
+      const storedRoom = sessionStorage.getItem('currentRoom');
+      if (storedRoom) {
+        const info = JSON.parse(storedRoom) as {
+          roomId: string;
+          roomName: string;
+          userName: string;
+          isHost: boolean;
+          createdAt?: string;
+          joinedAt?: string;
+          mediaSettings?: {
+            videoEnabled: boolean;
+            audioEnabled: boolean;
+            selectedVideoDevice: string;
+            selectedAudioDevice: string;
+          };
+        };
 
-      const timer = setTimeout(() => {
-        setRoomInfo(info);
-
-        if (info.mediaSettings) {
-          setIsMuted(!info.mediaSettings.audioEnabled);
-          setIsVideoOn(info.mediaSettings.videoEnabled);
-        }
-
-        setParticipants([
-          {
-            id: 'self',
-            name: info.userName,
-            isHost: info.isHost,
-            isSpeaking: false,
-            isMuted: !info.mediaSettings?.audioEnabled,
-            isVideoOn: info.mediaSettings?.videoEnabled || false,
-          },
-        ]);
-      }, 0);
-
-      return () => clearTimeout(timer);
-    } else {
-      navigate(`/room/join`);
-      return undefined;
+        setRoom({
+          roomId: info.roomId,
+          roomName: info.roomName,
+          userName: info.userName,
+          isHost: info.isHost,
+          mediaSettings: info.mediaSettings,
+          createdAt: info.createdAt,
+          joinedAt: info.joinedAt,
+        });
+      } else {
+        navigate(`/room/join`);
+      }
     }
-  }, [roomId, navigate]);
+  }, [roomId, urlRoomId, setRoom, navigate]);
 
   useEffect(() => {
     const initializeMedia = async () => {
-      if (!roomInfo?.mediaSettings) return;
+      if (!mediaSettings) return;
 
       try {
         const constraints: MediaStreamConstraints = {
-          video: roomInfo.mediaSettings.videoEnabled
-            ? roomInfo.mediaSettings.selectedVideoDevice &&
-              roomInfo.mediaSettings.selectedVideoDevice !== ''
-              ? { deviceId: { exact: roomInfo.mediaSettings.selectedVideoDevice } }
+          video: mediaSettings.videoEnabled
+            ? mediaSettings.selectedVideoDevice && mediaSettings.selectedVideoDevice !== ''
+              ? { deviceId: { exact: mediaSettings.selectedVideoDevice } }
               : true
             : false,
-          audio: roomInfo.mediaSettings.audioEnabled
-            ? roomInfo.mediaSettings.selectedAudioDevice &&
-              roomInfo.mediaSettings.selectedAudioDevice !== ''
-              ? { deviceId: { exact: roomInfo.mediaSettings.selectedAudioDevice } }
+          audio: mediaSettings.audioEnabled
+            ? mediaSettings.selectedAudioDevice && mediaSettings.selectedAudioDevice !== ''
+              ? { deviceId: { exact: mediaSettings.selectedAudioDevice } }
               : true
             : false,
         };
@@ -165,16 +156,15 @@ export default function RecordingPage(): ReactElement {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         setLocalStream(stream);
 
-        if (videoRef.current && roomInfo.mediaSettings.videoEnabled) {
+        if (videoRef.current && mediaSettings.videoEnabled) {
           videoRef.current.srcObject = stream;
         }
 
         const audioTrack = stream.getAudioTracks()[0];
         if (audioTrack) {
-          audioTrack.enabled = roomInfo.mediaSettings.audioEnabled;
+          audioTrack.enabled = mediaSettings.audioEnabled;
 
-          // Setup voice detection
-          if (roomInfo.mediaSettings.audioEnabled) {
+          if (mediaSettings.audioEnabled) {
             setupVoiceDetection(stream);
           }
         }
@@ -182,18 +172,14 @@ export default function RecordingPage(): ReactElement {
         const err = error as { name?: string; message?: string };
         console.warn('Media access error:', err.name, err.message);
 
-        // In development mode, media devices might not be accessible
-        // Allow the user to continue without media
         if (
           err.name === 'NotFoundError' ||
           err.name === 'NotAllowedError' ||
           err.name === 'OverconstrainedError'
         ) {
           console.info('Continuing without media devices - this is common in development mode');
-
-          // Disable media states since we couldn't access devices
-          setIsMuted(true);
-          setIsVideoOn(false);
+          updateParticipantMuted('self', true);
+          updateParticipantVideo('self', false);
         }
       }
     };
@@ -203,7 +189,14 @@ export default function RecordingPage(): ReactElement {
     return () => {
       cleanupVoiceDetection();
     };
-  }, [roomInfo, setupVoiceDetection, cleanupVoiceDetection]);
+  }, [
+    mediaSettings,
+    setupVoiceDetection,
+    cleanupVoiceDetection,
+    setLocalStream,
+    updateParticipantMuted,
+    updateParticipantVideo,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -217,11 +210,11 @@ export default function RecordingPage(): ReactElement {
     let interval: NodeJS.Timeout;
     if (isRecording) {
       interval = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
+        incrementRecordingTime();
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [isRecording, incrementRecordingTime]);
 
   const formatTime = useCallback((seconds: number): string => {
     const hrs = Math.floor(seconds / 3600);
@@ -232,16 +225,17 @@ export default function RecordingPage(): ReactElement {
 
   const handleToggleRecording = useCallback(() => {
     if (isRecording) {
-      setIsRecording(false);
-      setRecordingTime(0);
+      stopRecording();
     } else {
-      setIsRecording(true);
+      startRecording();
     }
-  }, [isRecording]);
+  }, [isRecording, startRecording, stopRecording]);
 
   const handleToggleMute = useCallback(() => {
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
+    const selfParticipant = participants.find((p) => p.id === 'self');
+    if (!selfParticipant) return;
+
+    const newMutedState = !selfParticipant.isMuted;
 
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
@@ -252,24 +246,26 @@ export default function RecordingPage(): ReactElement {
           setupVoiceDetection(localStream);
         } else {
           cleanupVoiceDetection();
-          setParticipants((prev) =>
-            prev.map((p) =>
-              p.id === 'self' ? { ...p, isSpeaking: false, isMuted: newMutedState } : p
-            )
-          );
-          return;
+          updateParticipantSpeaking('self', false);
         }
       }
     }
 
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === 'self' ? { ...p, isMuted: newMutedState } : p))
-    );
-  }, [isMuted, localStream, setupVoiceDetection, cleanupVoiceDetection]);
+    updateParticipantMuted('self', newMutedState);
+  }, [
+    participants,
+    localStream,
+    setupVoiceDetection,
+    cleanupVoiceDetection,
+    updateParticipantMuted,
+    updateParticipantSpeaking,
+  ]);
 
   const handleToggleVideo = useCallback(() => {
-    const newVideoState = !isVideoOn;
-    setIsVideoOn(newVideoState);
+    const selfParticipant = participants.find((p) => p.id === 'self');
+    if (!selfParticipant) return;
+
+    const newVideoState = !selfParticipant.isVideoOn;
 
     if (localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
@@ -286,10 +282,8 @@ export default function RecordingPage(): ReactElement {
       }
     }
 
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === 'self' ? { ...p, isVideoOn: newVideoState } : p))
-    );
-  }, [isVideoOn, localStream]);
+    updateParticipantVideo('self', newVideoState);
+  }, [participants, localStream, updateParticipantVideo]);
 
   const handleLeaveRoom = useCallback(() => {
     if (isLeaving) return;
@@ -297,18 +291,15 @@ export default function RecordingPage(): ReactElement {
     setIsLeaving(true);
 
     if (isRecording) {
-      setIsRecording(false);
+      stopRecording();
     }
 
-    if (localStream) {
-      localStream.getTracks().forEach((track) => {
-        track.stop();
-      });
-    }
+    cleanupVoiceDetection();
+    leaveRoom();
 
     sessionStorage.removeItem('currentRoom');
     navigate('/');
-  }, [isLeaving, isRecording, localStream, navigate]);
+  }, [isLeaving, isRecording, stopRecording, cleanupVoiceDetection, leaveRoom, navigate]);
 
   const copyRoomId = useCallback(() => {
     if (roomId) {
@@ -368,7 +359,7 @@ export default function RecordingPage(): ReactElement {
       .slice(0, 2);
   }, []);
 
-  if (!roomInfo) {
+  if (!roomId || !roomName) {
     return (
       <div className="recording-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
         <p style={{ color: '#9ca3af' }}>Loading room...</p>
@@ -381,7 +372,7 @@ export default function RecordingPage(): ReactElement {
       <header className="recording-header">
         <div className="recording-header-content">
           <div className="recording-header-left">
-            <h1>{roomInfo.roomName}</h1>
+            <h1>{roomName}</h1>
             <div className="recording-room-id">
               <code>{roomId}</code>
               <button onClick={copyRoomId} className="recording-copy-btn" title="Copy Room ID">
@@ -585,13 +576,13 @@ export default function RecordingPage(): ReactElement {
       <footer className="recording-controls">
         <div className="recording-controls-content">
           <IconButton
-            className={`control-btn control-btn-mute ${isMuted ? 'active' : ''}`}
+            className={`control-btn control-btn-mute ${participants.find((p) => p.id === 'self')?.isMuted ? 'active' : ''}`}
             onClick={handleToggleMute}
-            aria-label={isMuted ? 'Unmute' : 'Mute'}
+            aria-label={participants.find((p) => p.id === 'self')?.isMuted ? 'Unmute' : 'Mute'}
             size="lg"
             variant="ghost"
             icon={
-              isMuted ? (
+              participants.find((p) => p.id === 'self')?.isMuted ? (
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
                   <path
                     fillRule="evenodd"
@@ -612,13 +603,15 @@ export default function RecordingPage(): ReactElement {
           />
 
           <IconButton
-            className={`control-btn control-btn-video ${isVideoOn ? '' : 'active'}`}
+            className={`control-btn control-btn-video ${participants.find((p) => p.id === 'self')?.isVideoOn ? '' : 'active'}`}
             onClick={handleToggleVideo}
-            aria-label={isVideoOn ? 'Stop Video' : 'Start Video'}
+            aria-label={
+              participants.find((p) => p.id === 'self')?.isVideoOn ? 'Stop Video' : 'Start Video'
+            }
             size="lg"
             variant="ghost"
             icon={
-              isVideoOn ? (
+              participants.find((p) => p.id === 'self')?.isVideoOn ? (
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
                 </svg>
@@ -634,7 +627,7 @@ export default function RecordingPage(): ReactElement {
             }
           />
 
-          {roomInfo.isHost && (
+          {isHost && (
             <IconButton
               className={`control-btn control-btn-record ${isRecording ? 'recording' : ''}`}
               onClick={handleToggleRecording}
