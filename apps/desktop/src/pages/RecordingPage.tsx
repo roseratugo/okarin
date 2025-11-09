@@ -272,6 +272,14 @@ export default function RecordingPage(): ReactElement {
       if (videoTrack) {
         videoTrack.enabled = newVideoState;
       }
+
+      if (videoRef.current) {
+        if (newVideoState) {
+          videoRef.current.srcObject = localStream;
+        } else {
+          videoRef.current.srcObject = null;
+        }
+      }
     }
 
     updateParticipantVideo('self', newVideoState);
@@ -419,15 +427,15 @@ export default function RecordingPage(): ReactElement {
                 className={`participant-card ${participant.isSpeaking && !participant.isMuted ? 'speaking' : ''}`}
               >
                 <div className="participant-video">
-                  <video
-                    ref={participant.id === 'self' ? videoRef : null}
-                    autoPlay
-                    playsInline
-                    muted={participant.id === 'self'}
-                    className="participant-video-stream"
-                    style={{ display: participant.isVideoOn ? 'block' : 'none' }}
-                  />
-                  {!participant.isVideoOn && (
+                  {participant.isVideoOn ? (
+                    <video
+                      ref={participant.id === 'self' ? videoRef : null}
+                      autoPlay
+                      playsInline
+                      muted={participant.id === 'self'}
+                      className="participant-video-stream"
+                    />
+                  ) : (
                     <div className="participant-avatar">{getInitials(participant.name)}</div>
                   )}
                 </div>
