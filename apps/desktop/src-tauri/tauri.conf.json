@@ -33,9 +33,6 @@
           "permissions": [
             "core:default",
             "dialog:default",
-            "fs:default",
-            "path:default",
-            "shell:allow-open",
             "store:default",
             "updater:default",
             "process:allow-restart",
