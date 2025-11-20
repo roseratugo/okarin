@@ -2,12 +2,14 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import Button from './Button';
 import { useState, useEffect, type ReactElement } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getMe } from '../lib/signalingApi';
 import './Navigation.css';
 
 interface NavItem {
   path: string;
   label: string;
   icon?: ReactElement;
+  requiresAuth?: boolean;
 }
 
 export default function Navigation(): ReactElement {
@@ -15,11 +17,22 @@ export default function Navigation(): ReactElement {
   const location = useLocation();
   const [appName, setAppName] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     invoke<string>('get_app_name')
       .then(setAppName)
       .catch(() => setAppName('Podcast Recorder'));
+
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      getMe(token)
+        .then(() => setIsAuthenticated(true))
+        .catch(() => {
+          localStorage.removeItem('authToken');
+          setIsAuthenticated(false);
+        });
+    }
   }, []);
 
   const navItems: NavItem[] = [
@@ -40,6 +53,7 @@ export default function Navigation(): ReactElement {
     {
       path: '/room/create',
       label: 'Create Room',
+      requiresAuth: true,
       icon: (
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -82,6 +96,8 @@ export default function Navigation(): ReactElement {
     },
   ];
 
+  const filteredNavItems = navItems.filter((item) => !item.requiresAuth || isAuthenticated);
+
   const currentRoom = sessionStorage.getItem('currentRoom');
   const hasActiveRoom = currentRoom !== null;
   const roomInfo = currentRoom ? JSON.parse(currentRoom) : null;
@@ -108,7 +124,7 @@ export default function Navigation(): ReactElement {
             </button>
 
             <div className="nav-items">
-              {navItems.map((item) => (
+              {filteredNavItems.map((item) => (
                 <NavLink
                   key={item.path}
                   to={item.path}
@@ -139,10 +155,6 @@ export default function Navigation(): ReactElement {
               </div>
             )}
 
-            <Button variant="primary" size="sm" onClick={() => navigate('/room/create')}>
-              New Recording
-            </Button>
-
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="nav-menu-toggle">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMenuOpen ? (
@@ -168,7 +180,7 @@ export default function Navigation(): ReactElement {
 
       <div className={`mobile-menu ${isMenuOpen ? 'open' : ''}`}>
         <div className="mobile-nav-items">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -203,18 +215,20 @@ export default function Navigation(): ReactElement {
             </div>
           )}
 
-          <div className="mobile-quick-action">
-            <Button
-              variant="primary"
-              className="btn-full"
-              onClick={() => {
-                navigate('/room/create');
-                setIsMenuOpen(false);
-              }}
-            >
-              Start New Recording
-            </Button>
-          </div>
+          {isAuthenticated && (
+            <div className="mobile-quick-action">
+              <Button
+                variant="primary"
+                className="btn-full"
+                onClick={() => {
+                  navigate('/room/create');
+                  setIsMenuOpen(false);
+                }}
+              >
+                Start New Recording
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

@@ -2,52 +2,90 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { useState, useEffect, type ReactElement } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getMe } from '../lib/signalingApi';
 import './HomePage.css';
 
 export default function HomePage(): ReactElement {
   const navigate = useNavigate();
   const [appName, setAppName] = useState('');
   const [appVersion, setAppVersion] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
 
   useEffect(() => {
     invoke<string>('get_app_name').then(setAppName).catch(console.error);
     invoke<string>('get_app_version').then(setAppVersion).catch(console.error);
+
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      getMe(token)
+        .then(() => setIsAuthenticated(true))
+        .catch(() => {
+          localStorage.removeItem('authToken');
+          setIsAuthenticated(false);
+        });
+    }
   }, []);
+
+  const handleTitleClick = () => {
+    const newCount = clickCount + 1;
+    if (newCount >= 5) {
+      navigate('/room/create');
+      setClickCount(0);
+    } else {
+      setClickCount(newCount);
+      setTimeout(() => setClickCount(0), 2000);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+        navigate('/room/create');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   return (
     <div className="home-page">
       <div className="home-content">
         <div className="home-header">
-          <h1 className="home-title">{appName || 'Podcast Recorder'}</h1>
+          <h1 className="home-title" onClick={handleTitleClick} style={{ cursor: 'default' }}>
+            {appName || 'Podcast Recorder'}
+          </h1>
           <p className="home-subtitle">Record, collaborate, and create amazing podcasts together</p>
           {appVersion && <p className="home-version">Version {appVersion}</p>}
         </div>
 
         <div className="home-actions">
-          <div className="action-card">
-            <div className="action-card-header">
-              <h2>Start Recording</h2>
-              <p>Create a new recording room and invite your co-hosts to join you</p>
+          {isAuthenticated && (
+            <div className="action-card">
+              <div className="action-card-header">
+                <h2>Start Recording</h2>
+                <p>Create a new recording room and invite your co-hosts to join you</p>
+              </div>
+              <Button
+                variant="primary"
+                fullWidth
+                size="lg"
+                onClick={() => navigate('/room/create')}
+                icon={
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                }
+              >
+                Create New Room
+              </Button>
             </div>
-            <Button
-              variant="primary"
-              fullWidth
-              size="lg"
-              onClick={() => navigate('/room/create')}
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              }
-            >
-              Create New Room
-            </Button>
-          </div>
+          )}
 
           <div className="action-card">
             <div className="action-card-header">

@@ -1,6 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
 
-// Types
 interface Env {
 	ROOMS: DurableObjectNamespace<Room>;
 	ROOM_METADATA: KVNamespace;
@@ -26,18 +25,20 @@ interface Participant {
 }
 
 interface TokenPayload {
-	room_id: string;
-	participant_id: string;
-	participant_name: string;
+	room_id?: string;
+	participant_id?: string;
+	participant_name?: string;
+	sub?: string;
+	email?: string;
+	name?: string;
 	exp: number;
 	iat: number;
 }
 
-// Simple JWT implementation
 async function signJwt(payload: TokenPayload, secret: string): Promise<string> {
 	const header = { alg: 'HS256', typ: 'JWT' };
-	const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-	const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+	const encodedHeader = btoa(JSON.stringify(header)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
+	const encodedPayload = btoa(JSON.stringify(payload)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
 
 	const encoder = new TextEncoder();
 	const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -45,9 +46,9 @@ async function signJwt(payload: TokenPayload, secret: string): Promise<string> {
 	const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`${encodedHeader}.${encodedPayload}`));
 
 	const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-		.replace(/=/g, '')
-		.replace(/\+/g, '-')
-		.replace(/\//g, '_');
+		.replaceAll('=', '')
+		.replaceAll('+', '-')
+		.replaceAll('/', '_');
 
 	return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 }
@@ -60,15 +61,14 @@ async function verifyJwt(token: string, secret: string): Promise<TokenPayload | 
 		const encoder = new TextEncoder();
 		const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
 
-		const signatureBytes = Uint8Array.from(atob(encodedSignature.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+		const signatureBytes = Uint8Array.from(atob(encodedSignature.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0));
 
 		const valid = await crypto.subtle.verify('HMAC', key, signatureBytes, encoder.encode(`${encodedHeader}.${encodedPayload}`));
 
 		if (!valid) return null;
 
-		const payload = JSON.parse(atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'))) as TokenPayload;
+		const payload = JSON.parse(atob(encodedPayload.replaceAll('-', '+').replaceAll('_', '/'))) as TokenPayload;
 
-		// Check expiration
 		if (payload.exp < Date.now() / 1000) return null;
 
 		return payload;
@@ -77,16 +77,24 @@ async function verifyJwt(token: string, secret: string): Promise<TokenPayload | 
 	}
 }
 
-// Room Durable Object
+function jsonResponse(data: object, corsHeaders: Record<string, string>, status = 200): Response {
+	return new Response(JSON.stringify(data), {
+		status,
+		headers: {
+			...corsHeaders,
+			'Content-Type': 'application/json',
+		},
+	});
+}
+
 export class Room extends DurableObject<Env> {
-	private participants: Map<string, Participant> = new Map();
-	private connections: Map<string, WebSocket> = new Map();
+	private readonly participants: Map<string, Participant> = new Map();
+	private readonly connections: Map<string, WebSocket> = new Map();
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 
-		// Restore WebSocket connections and participants on wake
-		this.ctx.getWebSockets().forEach((ws) => {
+		for (const ws of this.ctx.getWebSockets()) {
 			const meta = ws.deserializeAttachment() as {
 				participantId: string;
 				participantName: string;
@@ -102,13 +110,12 @@ export class Room extends DurableObject<Env> {
 					tracks: meta.tracks,
 				});
 			}
-		});
+		}
 	}
 
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 
-		// WebSocket upgrade
 		if (request.headers.get('Upgrade') === 'websocket') {
 			const token = url.searchParams.get('token');
 			if (!token) {
@@ -116,14 +123,13 @@ export class Room extends DurableObject<Env> {
 			}
 
 			const claims = await verifyJwt(token, this.env.JWT_SECRET);
-			if (!claims) {
+			if (!claims?.participant_id || !claims.participant_name || !claims.room_id) {
 				return new Response('Invalid token', { status: 401 });
 			}
 
 			const pair = new WebSocketPair();
 			const [client, server] = Object.values(pair);
 
-			// Accept with hibernation
 			this.ctx.acceptWebSocket(server);
 			server.serializeAttachment({
 				participantId: claims.participant_id,
@@ -132,7 +138,6 @@ export class Room extends DurableObject<Env> {
 
 			this.connections.set(claims.participant_id, server);
 
-			// Send existing participants to new connection
 			const existingParticipants = Array.from(this.participants.values()).filter((p) => p.id !== claims.participant_id);
 
 			for (const participant of existingParticipants) {
@@ -150,7 +155,6 @@ export class Room extends DurableObject<Env> {
 				}
 			}
 
-			// Broadcast join to others
 			this.broadcast(claims.participant_id, {
 				type: 'join',
 				from: claims.participant_id,
@@ -161,7 +165,6 @@ export class Room extends DurableObject<Env> {
 				},
 			});
 
-			// Add to participants
 			this.participants.set(claims.participant_id, {
 				id: claims.participant_id,
 				name: claims.participant_name,
@@ -185,7 +188,6 @@ export class Room extends DurableObject<Env> {
 
 			switch (msgType) {
 				case 'cloudflare-session': {
-					// Store session info
 					const participant = this.participants.get(meta.participantId);
 					if (participant) {
 						participant.sessionId = data.sessionId;
@@ -193,7 +195,6 @@ export class Room extends DurableObject<Env> {
 						this.participants.set(meta.participantId, participant);
 					}
 
-					// Update WebSocket attachment for hibernation recovery
 					ws.serializeAttachment({
 						participantId: meta.participantId,
 						participantName: meta.participantName,
@@ -201,19 +202,16 @@ export class Room extends DurableObject<Env> {
 						tracks: data.tracks,
 					});
 
-					// Broadcast to others
 					this.broadcast(meta.participantId, data);
 					break;
 				}
 
 				case 'track-state': {
-					// Broadcast track state changes
 					this.broadcast(meta.participantId, data);
 					break;
 				}
 
 				default: {
-					// Handle legacy P2P messages (offer, answer, ice)
 					if (data.to === 'all') {
 						this.broadcast(meta.participantId, data);
 					} else {
@@ -233,7 +231,6 @@ export class Room extends DurableObject<Env> {
 		this.connections.delete(meta.participantId);
 		this.participants.delete(meta.participantId);
 
-		// Broadcast leave
 		this.broadcast(meta.participantId, {
 			type: 'leave',
 			from: meta.participantId,
@@ -278,36 +275,40 @@ export class Room extends DurableObject<Env> {
 	}
 }
 
-// Worker fetch handler
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname;
 
-		// CORS headers
 		const corsHeaders = {
 			'Access-Control-Allow-Origin': env.CORS_ORIGIN || '*',
 			'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 			'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 		};
 
-		// Handle CORS preflight
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { headers: corsHeaders });
 		}
 
 		try {
-			// Health check
 			if (path === '/health') {
 				return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() }, corsHeaders);
 			}
 
-			// Create room
 			if (path === '/api/rooms' && request.method === 'POST') {
+				const authHeader = request.headers.get('Authorization');
+				if (!authHeader?.startsWith('Bearer ')) {
+					return jsonResponse({ error: 'Unauthorized - Founder member login required' }, corsHeaders, 401);
+				}
+
+				const token = authHeader.substring(7);
+				const claims = await verifyJwt(token, env.JWT_SECRET);
+				if (!claims) {
+					return jsonResponse({ error: 'Invalid or expired token' }, corsHeaders, 401);
+				}
+
 				const body = (await request.json()) as {
 					name: string;
-					created_by?: string;
-					createdBy?: string;
 					max_participants?: number;
 					maxParticipants?: number;
 				};
@@ -316,13 +317,13 @@ export default {
 				const metadata: RoomMetadata = {
 					id: roomId,
 					name: body.name,
-					createdBy: body.created_by || body.createdBy || 'unknown',
+					createdBy: claims.email || claims.sub || 'unknown',
 					createdAt: new Date().toISOString(),
 					maxParticipants: body.max_participants || body.maxParticipants || 10,
 				};
 
 				await env.ROOM_METADATA.put(roomId, JSON.stringify(metadata), {
-					expirationTtl: 7200, // 2 hours
+					expirationTtl: 7200,
 				});
 
 				return jsonResponse(
@@ -334,8 +335,7 @@ export default {
 				);
 			}
 
-			// Get room
-			if (path.match(/^\/api\/rooms\/[^/]+$/) && request.method === 'GET') {
+			if (/^\/api\/rooms\/[^/]+$/.exec(path) && request.method === 'GET') {
 				const roomId = path.split('/')[3];
 				const metadata = await env.ROOM_METADATA.get(roomId);
 
@@ -346,8 +346,7 @@ export default {
 				return jsonResponse(JSON.parse(metadata), corsHeaders);
 			}
 
-			// Join room
-			if (path.match(/^\/api\/rooms\/[^/]+\/join$/) && request.method === 'POST') {
+			if (/^\/api\/rooms\/[^/]+\/join$/.exec(path) && request.method === 'POST') {
 				const roomId = path.split('/')[3];
 				const metadata = await env.ROOM_METADATA.get(roomId);
 
@@ -363,7 +362,7 @@ export default {
 						room_id: roomId,
 						participant_id: participantId,
 						participant_name: body.participant_name || body.participantName || 'Guest',
-						exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+						exp: Math.floor(Date.now() / 1000) + 86400,
 						iat: Math.floor(Date.now() / 1000),
 					},
 					env.JWT_SECRET,
@@ -379,7 +378,6 @@ export default {
 				);
 			}
 
-			// WebSocket connection
 			if (path === '/ws') {
 				const token = url.searchParams.get('token');
 				if (!token) {
@@ -387,18 +385,16 @@ export default {
 				}
 
 				const claims = await verifyJwt(token, env.JWT_SECRET);
-				if (!claims) {
+				if (!claims?.room_id) {
 					return jsonResponse({ error: 'Invalid token' }, corsHeaders, 401);
 				}
 
-				// Get room Durable Object
 				const roomId = env.ROOMS.idFromName(claims.room_id);
 				const room = env.ROOMS.get(roomId);
 
 				return room.fetch(request);
 			}
 
-			// Cloudflare Calls API proxy
 			if (path.startsWith('/cloudflare/')) {
 				return handleCloudflareProxy(request, env, path, corsHeaders);
 			}
@@ -411,7 +407,6 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-// Cloudflare Calls API proxy
 async function handleCloudflareProxy(request: Request, env: Env, path: string, corsHeaders: Record<string, string>): Promise<Response> {
 	const cfPath = path.replace('/cloudflare', '');
 	const baseUrl = `https://rtc.live.cloudflare.com/v1/apps/${env.CLOUDFLARE_APP_ID}`;
@@ -421,16 +416,13 @@ async function handleCloudflareProxy(request: Request, env: Env, path: string, c
 	let body: string | undefined;
 
 	if (cfPath === '/session' && method === 'POST') {
-		// Create session - no body needed
 		targetUrl = `${baseUrl}/sessions/new`;
 		body = undefined;
-	} else if (cfPath.match(/^\/session\/[^/]+\/tracks\/new$/) && method === 'POST') {
-		// Add tracks
+	} else if (/^\/session\/[^/]+\/tracks\/new$/.exec(cfPath) && method === 'POST') {
 		const sessionId = cfPath.split('/')[2];
 		targetUrl = `${baseUrl}/sessions/${sessionId}/tracks/new`;
 		body = await request.text();
-	} else if (cfPath.match(/^\/session\/[^/]+\/renegotiate$/) && method === 'PUT') {
-		// Renegotiate
+	} else if (/^\/session\/[^/]+\/renegotiate$/.exec(cfPath) && method === 'PUT') {
 		const sessionId = cfPath.split('/')[2];
 		targetUrl = `${baseUrl}/sessions/${sessionId}/renegotiate`;
 		body = await request.text();
@@ -451,16 +443,6 @@ async function handleCloudflareProxy(request: Request, env: Env, path: string, c
 
 	return new Response(responseBody, {
 		status: response.status,
-		headers: {
-			...corsHeaders,
-			'Content-Type': 'application/json',
-		},
-	});
-}
-
-function jsonResponse(data: object, corsHeaders: Record<string, string>, status = 200): Response {
-	return new Response(JSON.stringify(data), {
-		status,
 		headers: {
 			...corsHeaders,
 			'Content-Type': 'application/json',

@@ -1,9 +1,9 @@
-import { useState, useCallback, type ReactElement } from 'react';
+import { useState, useCallback, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
-import { createRoom, joinRoom } from '../lib/signalingApi';
+import { createRoom, joinRoom, login, getMe, AuthUser } from '../lib/signalingApi';
 import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
@@ -15,9 +15,64 @@ export default function CreateRoomPage(): ReactElement {
   const [showPreJoin, setShowPreJoin] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState('');
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        try {
+          const { user } = await getMe(token);
+          setAuthUser(user);
+          setUserName(user.name);
+          setIsAuthenticated(true);
+        } catch {
+          localStorage.removeItem('authToken');
+        }
+      }
+      setIsCheckingAuth(false);
+    };
+    checkAuth();
+  }, []);
+
+  const handleLogin = useCallback(async () => {
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter email and password');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setError('');
+
+    try {
+      const response = await login(email.trim(), password);
+      localStorage.setItem('authToken', response.token);
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+      setIsLoggingIn(false);
+    }
+  }, [email, password]);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('authToken');
+    window.location.reload();
+  }, []);
+
   const handleCreateRoom = useCallback(async () => {
     if (!roomName.trim() || !userName.trim()) {
       setError('Please enter both room name and your name');
+      return;
+    }
+
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) {
+      setError('Please login first');
       return;
     }
 
@@ -25,11 +80,8 @@ export default function CreateRoomPage(): ReactElement {
     setError('');
 
     try {
-      // Create room on signaling server
-      const response = await createRoom(roomName.trim(), userName.trim());
+      const response = await createRoom(roomName.trim(), authToken);
       setCreatedRoomId(response.room_id);
-
-      // Show pre-join screen (actual join happens after media setup)
       setShowPreJoin(true);
       setIsCreating(false);
     } catch (err) {
@@ -44,10 +96,8 @@ export default function CreateRoomPage(): ReactElement {
       setError('');
 
       try {
-        // Join the room as host to get JWT token
         const joinResponse = await joinRoom(createdRoomId, userName.trim());
 
-        // Store room info with token
         sessionStorage.setItem(
           'currentRoom',
           JSON.stringify({
@@ -62,7 +112,6 @@ export default function CreateRoomPage(): ReactElement {
           })
         );
 
-        // Navigate to recording page
         navigate(`/recording/${createdRoomId}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -78,6 +127,90 @@ export default function CreateRoomPage(): ReactElement {
     setCreatedRoomId('');
   }, []);
 
+  if (isCheckingAuth) {
+    return (
+      <div className="create-room-page">
+        <div className="room-card">
+          <div className="room-card-header">
+            <h1>Loading...</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="create-room-page">
+        <div className="room-card">
+          <div className="room-card-header">
+            <h1>Founder Member Login</h1>
+            <p>Login to create recording rooms</p>
+          </div>
+
+          <div className="room-form">
+            <div className="form-group">
+              <label htmlFor="email" className="form-label">
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoggingIn}
+                className="input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password" className="form-label">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoggingIn}
+                className="input"
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+
+            {error && (
+              <div className="alert alert-error">
+                <p>{error}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="room-actions">
+            <Button
+              variant="primary"
+              className="btn btn-primary btn-full"
+              onClick={handleLogin}
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? 'Logging in...' : 'Login'}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="btn btn-ghost btn-full"
+              onClick={() => navigate('/')}
+              disabled={isLoggingIn}
+            >
+              Back to Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {showPreJoin && (
@@ -91,8 +224,15 @@ export default function CreateRoomPage(): ReactElement {
       <div className="create-room-page">
         <div className="room-card">
           <div className="room-card-header">
-            <h1>Create Recording Room</h1>
-            <p>Start a new podcast recording session</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1>Create Recording Room</h1>
+                <p>Logged in as {authUser?.name}</p>
+              </div>
+              <Button variant="ghost" onClick={handleLogout} style={{ padding: '8px 12px' }}>
+                Logout
+              </Button>
+            </div>
           </div>
 
           <div className="room-form">

@@ -1,0 +1,24 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "auth",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-20",
+	"observability": {
+		"enabled": true
+	},
+	"routes": [
+		{
+			"pattern": "auth.call.collectif-pixel.fr",
+			"custom_domain": true
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "FOUNDER_MEMBERS",
+			"id": "61ccce17f0394d3f8113b073865b3015"
+		}
+	],
+	"vars": {
+		"CORS_ORIGIN": "*"
+	}
+}

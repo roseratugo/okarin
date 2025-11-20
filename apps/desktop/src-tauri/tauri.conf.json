@@ -33,6 +33,15 @@
     "icon": ["icons/icon.png"],
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgwNjg2NUVDOEU0NTYzMjkKUldRcFkwV083R1ZvZ0RqaDVPSjc0Ri9LOXpqU0ZRODhrb3hmMTlVb0x2eWc5d0xPaUhneGNPTFkK",
+      "endpoints": [
+        "https://github.com/roseratugo/podcast-recorder/releases/latest/download/latest.json"
+      ]
     }
   }
 }

@@ -45,3 +45,6 @@ coverage/
 
 Recordings/
 gen/
+
+# Tauri signing keys
+.tauri/

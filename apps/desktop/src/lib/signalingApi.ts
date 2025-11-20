@@ -1,8 +1,5 @@
-/**
- * API client for signaling server
- */
-
 const SIGNALING_SERVER_URL = import.meta.env.VITE_SIGNALING_SERVER_URL || 'http://localhost:3000';
+const AUTH_SERVER_URL = import.meta.env.VITE_AUTH_SERVER_URL || 'http://localhost:3001';
 
 export interface CreateRoomResponse {
   room_id: string;
@@ -24,18 +21,58 @@ export interface RoomInfo {
   ttl_seconds: number;
 }
 
-/**
- * Create a new room
- */
-export async function createRoom(roomName: string, createdBy: string): Promise<CreateRoomResponse> {
-  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms`, {
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  const response = await fetch(`${AUTH_SERVER_URL}/api/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Login failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function getMe(authToken: string): Promise<{ user: AuthUser }> {
+  const response = await fetch(`${AUTH_SERVER_URL}/api/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to get user: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function createRoom(roomName: string, authToken: string): Promise<CreateRoomResponse> {
+  const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
     body: JSON.stringify({
       name: roomName,
-      created_by: createdBy,
       max_participants: 4,
     }),
   });
@@ -48,9 +85,6 @@ export async function createRoom(roomName: string, createdBy: string): Promise<C
   return response.json();
 }
 
-/**
- * Join an existing room
- */
 export async function joinRoom(roomId: string, participantName: string): Promise<JoinRoomResponse> {
   const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}/join`, {
     method: 'POST',
@@ -70,9 +104,6 @@ export async function joinRoom(roomId: string, participantName: string): Promise
   return response.json();
 }
 
-/**
- * Get room information
- */
 export async function getRoomInfo(roomId: string): Promise<RoomInfo> {
   const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}`);
 
@@ -84,9 +115,6 @@ export async function getRoomInfo(roomId: string): Promise<RoomInfo> {
   return response.json();
 }
 
-/**
- * Leave a room
- */
 export async function leaveRoom(roomId: string, token: string): Promise<void> {
   const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms/${roomId}/leave`, {
     method: 'POST',
