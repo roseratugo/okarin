@@ -24,7 +24,25 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' mediastream: blob:; connect-src 'self' ws: wss: http: https:; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' mediastream: blob:; connect-src 'self' ws: wss: http: https:; font-src 'self' data:",
+      "capabilities": [
+        {
+          "identifier": "default",
+          "description": "Default capabilities for the app",
+          "windows": ["*"],
+          "permissions": [
+            "core:default",
+            "dialog:default",
+            "fs:default",
+            "path:default",
+            "shell:allow-open",
+            "store:default",
+            "updater:default",
+            "process:allow-restart",
+            "process:allow-exit"
+          ]
+        }
+      ]
     }
   },
   "bundle": {
