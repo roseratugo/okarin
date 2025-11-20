@@ -1,0 +1,46 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "signaling-server",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-20",
+	"migrations": [
+		{
+			"new_sqlite_classes": [
+				"Room"
+			],
+			"tag": "v1"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "Room",
+				"name": "ROOMS"
+			}
+		]
+	},
+	"kv_namespaces": [
+		{
+			"binding": "ROOM_METADATA",
+			"id": "468a1e3d230f4cb2bc6ce8d58ad01bcd",
+			"remote": true
+		}
+	],
+	"routes": [
+		{
+			"pattern": "call.collectif-pixel.fr",
+			"custom_domain": true
+		}
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"vars": {
+		"CLOUDFLARE_APP_ID": "cf5a86bd172f6d683b543f6dd93fac46",
+		"CORS_ORIGIN": "*"
+	}
+	// Secrets (set via wrangler secret put):
+	// - JWT_SECRET
+	// - CLOUDFLARE_APP_SECRET
+}

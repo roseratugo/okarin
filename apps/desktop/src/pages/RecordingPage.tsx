@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '../lib/tauri';
 import Button, { IconButton } from '../components/Button';
 import { useRoomStore, useRecordingStore, useSettingsStore } from '../stores';
-import { WebRTCManager } from '../lib/WebRTCManager';
+import { useCloudfareCalls } from '../hooks/useCloudfareCalls';
 import { useMediaRecorder } from '../hooks/useMediaRecorder';
 import * as Recording from '../lib/recording';
 import './RecordingPage.css';
 import type { ReactElement } from 'react';
+import type { TrackInfo } from '../lib/CloudflareCalls';
 
 // Voice detection threshold (0-255, higher = less sensitive)
 const SPEAKING_THRESHOLD = 25;
@@ -32,7 +33,6 @@ export default function RecordingPage(): ReactElement {
     setLocalStream,
     addParticipant,
     removeParticipant,
-    updateParticipant,
     updateParticipantSpeaking,
     updateParticipantMuted,
     updateParticipantVideo,
@@ -59,9 +59,55 @@ export default function RecordingPage(): ReactElement {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const inviteDropdownRef = useRef<HTMLDivElement>(null);
-  const webrtcManagerRef = useRef<WebRTCManager | null>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const participantsRecordingRef = useRef<Set<string>>(new Set());
+  const wsRef = useRef<WebSocket | null>(null);
+  const localTracksRef = useRef<TrackInfo[]>([]);
+  // Map Cloudflare sessionId to participant UUID
+  const sessionToParticipantRef = useRef<Map<string, string>>(new Map());
+
+  // Get signaling URL from env
+  const signalingServerUrl = import.meta.env.VITE_SIGNALING_SERVER_URL || 'http://localhost:3001';
+
+  // Cloudflare Calls SFU
+  const cloudflare = useCloudfareCalls({
+    appId: import.meta.env.VITE_CLOUDFLARE_APP_ID || '',
+    signalingUrl: signalingServerUrl,
+    onTrackAdded: (track, _trackInfo, sessionId) => {
+      // Map sessionId to participant UUID
+      const participantId = sessionToParticipantRef.current.get(sessionId) || sessionId;
+      console.log(`Track added from ${participantId} (session: ${sessionId}): ${track.kind}`);
+
+      // Update video element for this participant
+      const videoElement = remoteVideoRefs.current.get(participantId);
+      if (videoElement && track.kind === 'video') {
+        const stream = new MediaStream([track]);
+        videoElement.srcObject = stream;
+      }
+
+      // Update participant state
+      if (track.kind === 'video') {
+        updateParticipantVideo(participantId, track.enabled);
+      } else if (track.kind === 'audio') {
+        updateParticipantMuted(participantId, !track.enabled);
+      }
+
+      // Handle audio playback
+      if (track.kind === 'audio') {
+        const audioElement = document.createElement('audio');
+        audioElement.srcObject = new MediaStream([track]);
+        audioElement.autoplay = true;
+        audioElement.id = `audio-${participantId}`;
+        document.body.appendChild(audioElement);
+      }
+    },
+    onTrackRemoved: (trackId) => {
+      console.log(`Track removed: ${trackId}`);
+    },
+    onError: (error) => {
+      console.error('Cloudflare Calls error:', error);
+    },
+  });
 
   const setupVoiceDetection = useCallback(
     (stream: MediaStream) => {
@@ -254,11 +300,11 @@ export default function RecordingPage(): ReactElement {
     };
   }, [localStream]);
 
-  // Initialize WebRTC Manager
+  // Initialize Cloudflare Calls SFU
   useEffect(() => {
     if (!roomId || !localStream) return;
 
-    const initializeWebRTC = async () => {
+    const initializeCloudflare = async () => {
       try {
         // Get JWT token from CreateRoomPage or JoinRoomPage
         const storedRoom = sessionStorage.getItem('currentRoom');
@@ -278,161 +324,201 @@ export default function RecordingPage(): ReactElement {
           return;
         }
 
-        // Use environment variable or default to localhost
-        const signalingServerUrl =
-          import.meta.env.VITE_SIGNALING_SERVER_URL || 'ws://localhost:3000';
+        // Connect to Cloudflare Calls
+        const sessionId = await cloudflare.connect();
+        console.log('Connected to Cloudflare Calls, session:', sessionId);
 
-        // Create WebRTC Manager
-        const manager = new WebRTCManager(
-          {
+        // Publish local tracks
+        const tracks = localStream.getTracks();
+        const trackInfos = await cloudflare.publishTracks(tracks);
+        localTracksRef.current = trackInfos;
+        console.log('Published tracks:', trackInfos);
+
+        // Connect to WebSocket for room signaling
+        const wsUrl = signalingServerUrl.replace('http', 'ws') + '/ws';
+        const ws = new WebSocket(`${wsUrl}?token=${roomInfo.token}`);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('WebSocket connected');
+          console.log('Broadcasting cloudflare-session with tracks:', localTracksRef.current);
+          ws.send(JSON.stringify({
+            type: 'cloudflare-session',
             roomId,
             participantId: roomInfo.participantId,
-            participantName: roomInfo.userName || 'Unknown',
-            token: roomInfo.token,
-            signalingServerUrl,
-            iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
-            maxPeers: 4,
-          },
-          {
-            onParticipantJoined: async (participantId, participantName) => {
-              console.log(`Participant joined: ${participantId} (${participantName})`);
-              addParticipant({
-                id: participantId,
-                name: participantName,
-                isHost: false,
-                isSpeaking: false,
-                isMuted: true, // Will be updated when tracks are received
-                isVideoOn: false, // Will be updated when tracks are received
-              });
+            participantName: roomInfo.userName,
+            sessionId,
+            tracks: localTracksRef.current.map(t => ({
+              trackName: t.trackName,
+              kind: t.kind,
+            })),
+          }));
+        };
 
-              // Send current track states to the new participant
-              if (webrtcManagerRef.current && localStream) {
-                webrtcManagerRef.current.sendCurrentTrackStates(participantId, localStream);
-              }
+        ws.onmessage = async (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('WebSocket message received:', message.type, message);
 
-              // If recording is active, add this participant to recording
-              if (isRecording && recordingId) {
-                console.log(`Adding participant ${participantName} to active recording`);
-                // Will start recording their stream when onRemoteTrack is called
-              }
-            },
+            switch (message.type) {
+              case 'cloudflare-session': {
+                // Another participant announced their session
+                const { participantId, participantName, sessionId: remoteSessionId, tracks: remoteTracks } = message;
 
-            onParticipantLeft: (participantId) => {
-              console.log(`Participant left: ${participantId}`);
-              removeParticipant(participantId);
-              remoteVideoRefs.current.delete(participantId);
+                if (participantId === roomInfo.participantId) return;
 
-              // Stop recording for this participant if recording is active
-              if (isRecording && participantsRecordingRef.current.has(participantId)) {
-                mediaRecorder.stopRecording(participantId).catch((err) => {
-                  console.error(`Error stopping recording for ${participantId}:`, err);
+                console.log(`Participant ${participantName} joined with session ${remoteSessionId}`);
+
+                // Store mapping from sessionId to participantId
+                sessionToParticipantRef.current.set(remoteSessionId, participantId);
+
+                // Add participant to UI
+                addParticipant({
+                  id: participantId,
+                  name: participantName,
+                  isHost: false,
+                  isSpeaking: false,
+                  isMuted: true,
+                  isVideoOn: false,
                 });
-                participantsRecordingRef.current.delete(participantId);
-                setRecordingParticipantsCount(participantsRecordingRef.current.size);
-                console.log(`Stopped recording for participant: ${participantId}`);
-              }
-            },
 
-            onRemoteTrack: async (participantId, track, stream) => {
-              console.log(`Remote track received from ${participantId}: ${track.kind}`);
-
-              // Get or create video element for this participant
-              const videoElement = remoteVideoRefs.current.get(participantId);
-              if (videoElement && track.kind === 'video') {
-                videoElement.srcObject = stream;
+                // Subscribe to their tracks
+                if (remoteTracks && remoteTracks.length > 0) {
+                  await cloudflare.subscribeToParticipant(
+                    remoteSessionId,
+                    remoteTracks.map((t: { trackName: string }) => t.trackName)
+                  );
+                }
+                break;
               }
 
-              // Set initial track state based on the actual track.enabled value
-              if (track.kind === 'video') {
-                console.log(`Initial video track for ${participantId}, enabled: ${track.enabled}`);
-                updateParticipantVideo(participantId, track.enabled);
-              } else if (track.kind === 'audio') {
-                console.log(`Initial audio track for ${participantId}, enabled: ${track.enabled}`);
-                updateParticipantMuted(participantId, !track.enabled);
-              }
+              case 'participant-left': {
+                const { participantId } = message;
+                console.log(`Participant left: ${participantId}`);
+                removeParticipant(participantId);
+                remoteVideoRefs.current.delete(participantId);
 
-              // Update participant with stream
-              updateParticipant(participantId, { stream });
-
-              // If recording is active and we haven't started recording this participant yet
-              if (
-                isRecording &&
-                recordingId &&
-                !participantsRecordingRef.current.has(participantId)
-              ) {
-                const participant = participants.find((p) => p.id === participantId);
-                if (participant) {
-                  try {
-                    // Add participant track to Rust recording
-                    await Recording.addParticipantTrack(
-                      participantId,
-                      participant.name,
-                      true, // record audio
-                      true // record video
-                    );
-
-                    // Start MediaRecorder for this participant
-                    await mediaRecorder.startRecording(participantId, stream);
-                    participantsRecordingRef.current.add(participantId);
-                    setRecordingParticipantsCount(participantsRecordingRef.current.size);
-
-                    console.log(`Started recording for new participant: ${participant.name}`);
-                  } catch (error) {
-                    console.error(`Failed to start recording for ${participant.name}:`, error);
+                // Clean up session mapping
+                for (const [sessionId, pId] of sessionToParticipantRef.current.entries()) {
+                  if (pId === participantId) {
+                    sessionToParticipantRef.current.delete(sessionId);
+                    break;
                   }
                 }
+
+                // Clean up audio element
+                const audioEl = document.getElementById(`audio-${participantId}`);
+                if (audioEl) audioEl.remove();
+
+                // Stop recording for this participant
+                if (isRecording && participantsRecordingRef.current.has(participantId)) {
+                  mediaRecorder.stopRecording(participantId).catch((err) => {
+                    console.error(`Error stopping recording for ${participantId}:`, err);
+                  });
+                  participantsRecordingRef.current.delete(participantId);
+                  setRecordingParticipantsCount(participantsRecordingRef.current.size);
+                }
+                break;
               }
-            },
 
-            onConnectionStateChange: (participantId, state) => {
-              console.log(`Connection state for ${participantId}: ${state}`);
-            },
-
-            onTrackStateChange: (participantId, kind, enabled) => {
-              console.log(
-                `Track state change for ${participantId}: ${kind} ${enabled ? 'enabled' : 'disabled'}`
-              );
-              if (kind === 'video') {
-                updateParticipantVideo(participantId, enabled);
-              } else if (kind === 'audio') {
-                updateParticipantMuted(participantId, !enabled);
+              case 'track-state': {
+                const { participantId, kind, enabled } = message;
+                if (kind === 'video') {
+                  updateParticipantVideo(participantId, enabled);
+                } else if (kind === 'audio') {
+                  updateParticipantMuted(participantId, !enabled);
+                }
+                break;
               }
-            },
 
-            onError: (error) => {
-              console.error('WebRTC error:', error);
-            },
+              case 'leave': {
+                // Handle leave message from server (WsMessage format)
+                const participantId = message.from || message.data?.participant_id;
+                if (!participantId || participantId === roomInfo.participantId) break;
+
+                console.log(`Participant left: ${participantId}`);
+                removeParticipant(participantId);
+                remoteVideoRefs.current.delete(participantId);
+
+                // Clean up session mapping
+                for (const [sessionId, pId] of sessionToParticipantRef.current.entries()) {
+                  if (pId === participantId) {
+                    sessionToParticipantRef.current.delete(sessionId);
+                    break;
+                  }
+                }
+
+                // Clean up audio element
+                const audioEl = document.getElementById(`audio-${participantId}`);
+                if (audioEl) audioEl.remove();
+
+                // Stop recording for this participant
+                if (isRecording && participantsRecordingRef.current.has(participantId)) {
+                  mediaRecorder.stopRecording(participantId).catch((err) => {
+                    console.error(`Error stopping recording for ${participantId}:`, err);
+                  });
+                  participantsRecordingRef.current.delete(participantId);
+                  setRecordingParticipantsCount(participantsRecordingRef.current.size);
+                }
+                break;
+              }
+
+              case 'existing-participants': {
+                // When we join, get list of existing participants
+                for (const p of message.participants) {
+                  if (p.participantId === roomInfo.participantId) continue;
+
+                  addParticipant({
+                    id: p.participantId,
+                    name: p.participantName,
+                    isHost: false,
+                    isSpeaking: false,
+                    isMuted: true,
+                    isVideoOn: false,
+                  });
+
+                  // Subscribe to their tracks
+                  if (p.sessionId && p.tracks?.length > 0) {
+                    await cloudflare.subscribeToParticipant(
+                      p.sessionId,
+                      p.tracks.map((t: { trackName: string }) => t.trackName)
+                    );
+                  }
+                }
+                break;
+              }
+            }
+          } catch (error) {
+            console.error('WebSocket message error:', error);
           }
-        );
+        };
 
-        webrtcManagerRef.current = manager;
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
 
-        // Initialize and connect
-        await manager.initialize(localStream);
-        console.log('WebRTC Manager initialized');
+        ws.onclose = () => {
+          console.log('WebSocket disconnected');
+        };
+
       } catch (error) {
-        console.error('Failed to initialize WebRTC:', error);
+        console.error('Failed to initialize Cloudflare Calls:', error);
       }
     };
 
-    initializeWebRTC();
+    initializeCloudflare();
 
     return () => {
-      if (webrtcManagerRef.current) {
-        webrtcManagerRef.current.disconnect();
-        webrtcManagerRef.current = null;
+      cloudflare.disconnect();
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
+      // Clean up audio elements
+      document.querySelectorAll('[id^="audio-"]').forEach(el => el.remove());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    roomId,
-    localStream,
-    addParticipant,
-    removeParticipant,
-    updateParticipant,
-    updateParticipantVideo,
-    updateParticipantMuted,
-  ]);
+  }, [roomId, localStream]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -573,9 +659,19 @@ export default function RecordingPage(): ReactElement {
 
     updateParticipantMuted('self', newMutedState);
 
-    // Notify remote peers of audio state change
-    if (webrtcManagerRef.current) {
-      webrtcManagerRef.current.notifyTrackStateChange('audio', !newMutedState);
+    // Notify remote peers of audio state change via WebSocket
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'track-state',
+        kind: 'audio',
+        enabled: !newMutedState,
+      }));
+    }
+
+    // Update track in Cloudflare
+    const audioTrackInfo = localTracksRef.current.find(t => t.kind === 'audio');
+    if (audioTrackInfo) {
+      cloudflare.setTrackEnabled(audioTrackInfo.trackName, !newMutedState);
     }
   }, [
     participants,
@@ -584,6 +680,7 @@ export default function RecordingPage(): ReactElement {
     cleanupVoiceDetection,
     updateParticipantMuted,
     updateParticipantSpeaking,
+    cloudflare,
   ]);
 
   const handleToggleVideo = useCallback(() => {
@@ -601,11 +698,21 @@ export default function RecordingPage(): ReactElement {
 
     updateParticipantVideo('self', newVideoState);
 
-    // Notify remote peers of video state change
-    if (webrtcManagerRef.current) {
-      webrtcManagerRef.current.notifyTrackStateChange('video', newVideoState);
+    // Notify remote peers of video state change via WebSocket
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'track-state',
+        kind: 'video',
+        enabled: newVideoState,
+      }));
     }
-  }, [participants, localStream, updateParticipantVideo]);
+
+    // Update track in Cloudflare
+    const videoTrackInfo = localTracksRef.current.find(t => t.kind === 'video');
+    if (videoTrackInfo) {
+      cloudflare.setTrackEnabled(videoTrackInfo.trackName, newVideoState);
+    }
+  }, [participants, localStream, updateParticipantVideo, cloudflare]);
 
   const handleLeaveRoom = useCallback(() => {
     if (isLeaving) return;
