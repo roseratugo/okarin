@@ -33,11 +33,13 @@ jobs:
 
       - name: Get version from tag
         id: version
+        shell: bash
         run: |
           VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update version in package.json
+        shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           # Update root package.json
