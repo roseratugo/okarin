@@ -3,6 +3,7 @@ import { useEffect, ReactElement } from 'react';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import UpdateChecker from './components/UpdateChecker';
 import HomePage from './pages/HomePage';
 import RoomPage from './pages/RoomPage';
 import CreateRoomPage from './pages/CreateRoomPage';
@@ -33,6 +34,7 @@ function App(): ReactElement {
 
   return (
     <ErrorBoundary>
+      <UpdateChecker />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />

@@ -66,6 +66,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           args: --target ${{ matrix.target }}
@@ -77,9 +79,15 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz.sig
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi.zip
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi.zip.sig
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.tar.gz
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.tar.gz.sig
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
           retention-days: 30
 
@@ -103,6 +111,58 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "*.msi" -o -name "*.msi.zip" -o -name "*.msi.zip.sig" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.AppImage.tar.gz" -o -name "*.AppImage.tar.gz.sig" -o -name "*.deb" \) -exec cp {} release-files/ \;
+          ls -la release-files/
+
+      - name: Generate latest.json for updater
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="roseratugo/podcast-recorder"
+
+          # Read signatures
+          MACOS_SIG=""
+          WINDOWS_SIG=""
+          LINUX_SIG=""
+
+          if [ -f "release-files/Podcast Recorder.app.tar.gz.sig" ]; then
+            MACOS_SIG=$(cat "release-files/Podcast Recorder.app.tar.gz.sig")
+          fi
+
+          if [ -f "release-files/Podcast Recorder_${VERSION}_x64-setup.msi.zip.sig" ]; then
+            WINDOWS_SIG=$(cat "release-files/Podcast Recorder_${VERSION}_x64-setup.msi.zip.sig")
+          fi
+
+          if [ -f "release-files/podcast-recorder_${VERSION}_amd64.AppImage.tar.gz.sig" ]; then
+            LINUX_SIG=$(cat "release-files/podcast-recorder_${VERSION}_amd64.AppImage.tar.gz.sig")
+          fi
+
+          cat > release-files/latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "Release v${VERSION}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Podcast.Recorder.app.tar.gz",
+                "signature": "${MACOS_SIG}"
+              },
+              "windows-x86_64": {
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Podcast.Recorder_${VERSION}_x64-setup.msi.zip",
+                "signature": "${WINDOWS_SIG}"
+              },
+              "linux-x86_64": {
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/podcast-recorder_${VERSION}_amd64.AppImage.tar.gz",
+                "signature": "${LINUX_SIG}"
+              }
+            }
+          }
+          EOF
+
+          cat release-files/latest.json
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -118,7 +178,7 @@ jobs:
             - **Linux**: Download the `.AppImage` or `.deb` file
 
             See [CHANGELOG.md](CHANGELOG.md) for details.
-          files: artifacts/**/*
+          files: release-files/*
           draft: false
           prerelease: false
         env:

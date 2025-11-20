@@ -82,9 +82,15 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.4.2
         version: 2.4.2
+      '@tauri-apps/plugin-process':
+        specifier: ^2.3.1
+        version: 2.3.1
       '@tauri-apps/plugin-store':
         specifier: ^2.4.1
         version: 2.4.1
+      '@tauri-apps/plugin-updater':
+        specifier: ^2.9.0
+        version: 2.9.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -2110,10 +2116,28 @@ packages:
       '@tauri-apps/api': 2.9.0
     dev: false
 
+  /@tauri-apps/plugin-process@2.3.1:
+    resolution:
+      {
+        integrity: sha512-nCa4fGVaDL/B9ai03VyPOjfAHRHSBz5v6F/ObsB73r/dA3MHHhZtldaDMIc0V/pnUw9ehzr2iEG+XkSEyC0JJA==,
+      }
+    dependencies:
+      '@tauri-apps/api': 2.9.0
+    dev: false
+
   /@tauri-apps/plugin-store@2.4.1:
     resolution:
       {
         integrity: sha512-ckGSEzZ5Ii4Hf2D5x25Oqnm2Zf9MfDWAzR+volY0z/OOBz6aucPKEY0F649JvQ0Vupku6UJo7ugpGRDOFOunkA==,
+      }
+    dependencies:
+      '@tauri-apps/api': 2.9.0
+    dev: false
+
+  /@tauri-apps/plugin-updater@2.9.0:
+    resolution:
+      {
+        integrity: sha512-j++sgY8XpeDvzImTrzWA08OqqGqgkNyxczLD7FjNJJx/uXxMZFz5nDcfkyoI/rCjYuj2101Tci/r/HFmOmoxCg==,
       }
     dependencies:
       '@tauri-apps/api': 2.9.0
