@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '../lib/tauri';
 import Button, { IconButton } from '../components/Button';
 import { useRoomStore, useRecordingStore, useSettingsStore } from '../stores';
 import { WebRTCManager } from '../lib/WebRTCManager';
@@ -622,6 +622,33 @@ export default function RecordingPage(): ReactElement {
     sessionStorage.removeItem('currentRoom');
     navigate('/');
   }, [isLeaving, isRecording, stopRecording, cleanupVoiceDetection, leaveRoom, navigate]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'm':
+          handleToggleMute();
+          break;
+        case 'v':
+          handleToggleVideo();
+          break;
+        case 'r':
+          if (isHost) {
+            handleToggleRecording();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleToggleMute, handleToggleVideo, handleToggleRecording, isHost]);
 
   const copyRoomId = useCallback(() => {
     if (roomId) {
