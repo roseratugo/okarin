@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef, useCallback, ReactElement } from 'react';
 import { Button } from '@podcast-recorder/ui';
 import AudioVisualizer from './AudioVisualizer';
+import DeviceSelector from './DeviceSelector';
+import { useSettingsStore } from '../stores';
 import './PreJoinScreen.css';
-
-interface MediaDeviceInfo {
-  deviceId: string;
-  label: string;
-  kind: 'audioinput' | 'audiooutput' | 'videoinput';
-}
 
 interface PreJoinScreenProps {
   roomName: string;
@@ -33,45 +29,11 @@ export default function PreJoinScreen({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedVideoDevice, setSelectedVideoDevice] = useState('');
-  const [selectedAudioDevice, setSelectedAudioDevice] = useState('');
   const [permissionError, setPermissionError] = useState('');
 
-  const getDevices = useCallback(async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-
-      const videoInputs = devices
-        .filter((device) => device.kind === 'videoinput')
-        .map((device) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Camera ${device.deviceId.substring(0, 5)}`,
-          kind: 'videoinput' as const,
-        }));
-
-      const audioInputs = devices
-        .filter((device) => device.kind === 'audioinput')
-        .map((device) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Microphone ${device.deviceId.substring(0, 5)}`,
-          kind: 'audioinput' as const,
-        }));
-
-      setVideoDevices(videoInputs);
-      setAudioDevices(audioInputs);
-
-      if (videoInputs.length > 0 && !selectedVideoDevice) {
-        setSelectedVideoDevice(videoInputs[0].deviceId);
-      }
-      if (audioInputs.length > 0 && !selectedAudioDevice) {
-        setSelectedAudioDevice(audioInputs[0].deviceId);
-      }
-    } catch {
-      setPermissionError('Unable to access media devices. Please check your browser permissions.');
-    }
-  }, [selectedVideoDevice, selectedAudioDevice]);
+  const selectedAudioInput = useSettingsStore((state) => state.selectedAudioInput);
+  const selectedVideoInput = useSettingsStore((state) => state.selectedVideoInput);
+  const audioSettings = useSettingsStore((state) => state.audioSettings);
 
   const initializeMedia = useCallback(async () => {
     try {
@@ -83,14 +45,29 @@ export default function PreJoinScreen({
 
       const constraints: MediaStreamConstraints = {
         video: videoEnabled
-          ? selectedVideoDevice && selectedVideoDevice !== '' && selectedVideoDevice !== 'default'
-            ? { deviceId: { exact: selectedVideoDevice } }
-            : true
+          ? {
+              ...(selectedVideoInput && selectedVideoInput !== ''
+                ? { deviceId: { exact: selectedVideoInput } }
+                : {}),
+              // Request highest quality, let browser pick best available
+              width: { ideal: 4096 },
+              height: { ideal: 2160 },
+              frameRate: { ideal: 60 },
+              aspectRatio: { ideal: 16 / 9 },
+            }
           : false,
         audio: audioEnabled
-          ? selectedAudioDevice && selectedAudioDevice !== '' && selectedAudioDevice !== 'default'
-            ? { deviceId: { exact: selectedAudioDevice } }
-            : true
+          ? {
+              ...(selectedAudioInput && selectedAudioInput !== ''
+                ? { deviceId: { exact: selectedAudioInput } }
+                : {}),
+              // Force highest audio quality (48kHz is WebRTC max)
+              sampleRate: { ideal: 48000 },
+              channelCount: { ideal: 2 },
+              echoCancellation: audioSettings.echoCancellation,
+              noiseSuppression: audioSettings.noiseSuppression,
+              autoGainControl: audioSettings.autoGainControl,
+            }
           : false,
       };
 
@@ -132,29 +109,7 @@ export default function PreJoinScreen({
         setPermissionError(`Unable to access camera or microphone`);
       }
     }
-  }, [stream, videoEnabled, audioEnabled, selectedVideoDevice, selectedAudioDevice]);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        // Try to get permissions with audio only first (more likely to work)
-        const tempStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false,
-        });
-        tempStream.getTracks().forEach((track) => track.stop());
-        await getDevices();
-      } catch (error) {
-        console.warn('Cannot access media devices in dev mode:', error);
-        setPermissionError(
-          'Media devices may not be available in development mode. You can still join the room.'
-        );
-        await getDevices();
-      }
-    };
-
-    init();
-  }, [getDevices]);
+  }, [stream, videoEnabled, audioEnabled, selectedVideoInput, selectedAudioInput, audioSettings]);
 
   useEffect(() => {
     const setupMedia = async () => {
@@ -176,7 +131,7 @@ export default function PreJoinScreen({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVideoDevice, selectedAudioDevice, videoEnabled, audioEnabled]);
+  }, [selectedVideoInput, selectedAudioInput, videoEnabled, audioEnabled]);
 
   const toggleVideo = () => {
     if (stream) {
@@ -199,12 +154,11 @@ export default function PreJoinScreen({
   };
 
   const handleJoin = () => {
-    // Allow joining even without media access in dev mode
     onJoin({
       videoEnabled: videoEnabled && (stream?.getVideoTracks().length ?? 0) > 0,
       audioEnabled: audioEnabled && (stream?.getAudioTracks().length ?? 0) > 0,
-      selectedVideoDevice: selectedVideoDevice || '',
-      selectedAudioDevice: selectedAudioDevice || '',
+      selectedVideoDevice: selectedVideoInput || '',
+      selectedAudioDevice: selectedAudioInput || '',
     });
   };
 
@@ -287,39 +241,7 @@ export default function PreJoinScreen({
           </div>
 
           <div className="prejoin-settings">
-            <div className="settings-group">
-              <label>Camera</label>
-              <select
-                value={selectedVideoDevice}
-                onChange={(e) => setSelectedVideoDevice(e.target.value)}
-                className="device-select"
-                disabled={videoDevices.length === 0}
-              >
-                {videoDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-                {videoDevices.length === 0 && <option>No camera found</option>}
-              </select>
-            </div>
-
-            <div className="settings-group">
-              <label>Microphone</label>
-              <select
-                value={selectedAudioDevice}
-                onChange={(e) => setSelectedAudioDevice(e.target.value)}
-                className="device-select"
-                disabled={audioDevices.length === 0}
-              >
-                {audioDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-                {audioDevices.length === 0 && <option>No microphone found</option>}
-              </select>
-            </div>
+            <DeviceSelector />
 
             <div className="room-info-preview">
               <p className="info-label">Joining as</p>

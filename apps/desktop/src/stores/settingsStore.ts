@@ -17,6 +17,8 @@ export interface AudioSettings {
 
 export interface VideoSettings {
   quality: VideoQuality;
+  width: number;
+  height: number;
   frameRate: number;
   aspectRatio: string;
 }
@@ -35,6 +37,9 @@ export interface SettingsState {
   audioSettings: AudioSettings;
   videoSettings: VideoSettings;
   notifications: NotificationSettings;
+  selectedAudioInput: string | null;
+  selectedAudioOutput: string | null;
+  selectedVideoInput: string | null;
   lastUsedAudioDevice: string | null;
   lastUsedVideoDevice: string | null;
   autoStartRecording: boolean;
@@ -47,6 +52,9 @@ export interface SettingsActions {
   updateAudioSettings: (settings: Partial<AudioSettings>) => void;
   updateVideoSettings: (settings: Partial<VideoSettings>) => void;
   updateNotifications: (settings: Partial<NotificationSettings>) => void;
+  setSelectedAudioInput: (deviceId: string | null) => void;
+  setSelectedAudioOutput: (deviceId: string | null) => void;
+  setSelectedVideoInput: (deviceId: string | null) => void;
   setLastUsedAudioDevice: (deviceId: string) => void;
   setLastUsedVideoDevice: (deviceId: string) => void;
   setAutoStartRecording: (enabled: boolean) => void;
@@ -60,15 +68,17 @@ const initialState: SettingsState = {
   theme: 'system',
   language: 'en',
   audioSettings: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
     sampleRate: 48000,
     channelCount: 2,
     quality: 'high',
   },
   videoSettings: {
-    quality: 'high',
+    quality: 'ultra',
+    width: 2560,
+    height: 1440,
     frameRate: 30,
     aspectRatio: '16:9',
   },
@@ -79,6 +89,9 @@ const initialState: SettingsState = {
     recordingStopped: true,
     soundEnabled: true,
   },
+  selectedAudioInput: null,
+  selectedAudioOutput: null,
+  selectedVideoInput: null,
   lastUsedAudioDevice: null,
   lastUsedVideoDevice: null,
   autoStartRecording: false,
@@ -121,6 +134,15 @@ export const useSettingsStore = create<SettingsStore>()(
             false,
             'updateNotifications'
           ),
+
+        setSelectedAudioInput: (deviceId) =>
+          set({ selectedAudioInput: deviceId }, false, 'setSelectedAudioInput'),
+
+        setSelectedAudioOutput: (deviceId) =>
+          set({ selectedAudioOutput: deviceId }, false, 'setSelectedAudioOutput'),
+
+        setSelectedVideoInput: (deviceId) =>
+          set({ selectedVideoInput: deviceId }, false, 'setSelectedVideoInput'),
 
         setLastUsedAudioDevice: (deviceId) =>
           set({ lastUsedAudioDevice: deviceId }, false, 'setLastUsedAudioDevice'),

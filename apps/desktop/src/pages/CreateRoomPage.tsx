@@ -2,8 +2,8 @@ import { useState, useCallback, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { Input } from '@podcast-recorder/ui';
-import { invoke } from '@tauri-apps/api/core';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
+import { createRoom, joinRoom } from '../lib/signalingApi';
 import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
@@ -13,7 +13,7 @@ export default function CreateRoomPage(): ReactElement {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [showPreJoin, setShowPreJoin] = useState(false);
-  const [generatedRoomId, setGeneratedRoomId] = useState('');
+  const [createdRoomId, setCreatedRoomId] = useState('');
 
   const handleCreateRoom = useCallback(async () => {
     if (!roomName.trim() || !userName.trim()) {
@@ -25,38 +25,57 @@ export default function CreateRoomPage(): ReactElement {
     setError('');
 
     try {
-      const roomId = await invoke<string>('generate_room_id');
-      setGeneratedRoomId(roomId);
+      // Create room on signaling server
+      const response = await createRoom(roomName.trim(), userName.trim());
+      setCreatedRoomId(response.room_id);
+
+      // Show pre-join screen (actual join happens after media setup)
       setShowPreJoin(true);
       setIsCreating(false);
-    } catch {
-      setError('Failed to create room. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create room. Please try again.');
       setIsCreating(false);
     }
   }, [roomName, userName]);
 
   const handleJoinWithSettings = useCallback(
-    (settings: JoinSettings) => {
-      sessionStorage.setItem(
-        'currentRoom',
-        JSON.stringify({
-          roomId: generatedRoomId,
-          roomName: roomName.trim(),
-          userName: userName.trim(),
-          isHost: true,
-          createdAt: new Date().toISOString(),
-          mediaSettings: settings,
-        })
-      );
+    async (settings: JoinSettings) => {
+      setIsCreating(true);
+      setError('');
 
-      navigate(`/recording/${generatedRoomId}`);
+      try {
+        // Join the room as host to get JWT token
+        const joinResponse = await joinRoom(createdRoomId, userName.trim());
+
+        // Store room info with token
+        sessionStorage.setItem(
+          'currentRoom',
+          JSON.stringify({
+            roomId: createdRoomId,
+            roomName: roomName.trim(),
+            userName: userName.trim(),
+            participantId: joinResponse.participant_id,
+            token: joinResponse.token,
+            isHost: true,
+            createdAt: new Date().toISOString(),
+            mediaSettings: settings,
+          })
+        );
+
+        // Navigate to recording page
+        navigate(`/recording/${createdRoomId}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to join room');
+        setIsCreating(false);
+        setShowPreJoin(false);
+      }
     },
-    [generatedRoomId, roomName, userName, navigate]
+    [createdRoomId, roomName, userName, navigate]
   );
 
   const handleCancelPreJoin = useCallback(() => {
     setShowPreJoin(false);
-    setGeneratedRoomId('');
+    setCreatedRoomId('');
   }, []);
 
   return (
@@ -133,53 +152,6 @@ export default function CreateRoomPage(): ReactElement {
               Back to Home
             </Button>
           </div>
-
-          {/* Debug: Quick join without prejoin */}
-          {process.env.NODE_ENV === 'development' && (
-            <div
-              style={{
-                marginTop: '1rem',
-                paddingTop: '1rem',
-                borderTop: '1px solid var(--color-border)',
-              }}
-            >
-              <Button
-                variant="secondary"
-                className="btn btn-secondary btn-full"
-                onClick={async () => {
-                  if (!roomName.trim() || !userName.trim()) {
-                    setError('Please enter both room name and your name');
-                    return;
-                  }
-                  try {
-                    const roomId = await invoke<string>('generate_room_id');
-                    sessionStorage.setItem(
-                      'currentRoom',
-                      JSON.stringify({
-                        roomId,
-                        roomName: roomName.trim(),
-                        userName: userName.trim(),
-                        isHost: true,
-                        createdAt: new Date().toISOString(),
-                        mediaSettings: {
-                          videoEnabled: false,
-                          audioEnabled: true,
-                          selectedVideoDevice: '',
-                          selectedAudioDevice: '',
-                        },
-                      })
-                    );
-                    navigate(`/recording/${roomId}`);
-                  } catch {
-                    setError('Failed to create room');
-                  }
-                }}
-                disabled={isCreating}
-              >
-                Quick Join (Skip Media Setup)
-              </Button>
-            </div>
-          )}
 
           <div className="room-info">
             <p>

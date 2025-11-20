@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { useEffect, ReactElement } from 'react';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import HomePage from './pages/HomePage';
 import RoomPage from './pages/RoomPage';
 import CreateRoomPage from './pages/CreateRoomPage';
@@ -31,36 +32,38 @@ function App(): ReactElement {
   }, [theme]);
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<HomePage />} />
+    <ErrorBoundary>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<HomePage />} />
 
-        <Route path="/room" element={<RoomPage />}>
-          <Route path="create" element={<CreateRoomPage />} />
-          <Route path="join" element={<JoinRoomPage />} />
+          <Route path="/room" element={<RoomPage />}>
+            <Route path="create" element={<CreateRoomPage />} />
+            <Route path="join" element={<JoinRoomPage />} />
+          </Route>
+
+          <Route
+            path="/recording/:roomId"
+            element={
+              <ProtectedRoute requireRoom={true} redirectTo="/room/join">
+                <RecordingPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/settings" element={<SettingsPage />} />
+
+          {process.env.NODE_ENV === 'development' && (
+            <>
+              <Route path="/test-prejoin" element={<TestPreJoin />} />
+              <Route path="/test-media" element={<MediaTest />} />
+            </>
+          )}
+
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
-
-        <Route
-          path="/recording/:roomId"
-          element={
-            <ProtectedRoute requireRoom={true} redirectTo="/room/join">
-              <RecordingPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route path="/settings" element={<SettingsPage />} />
-
-        {process.env.NODE_ENV === 'development' && (
-          <>
-            <Route path="/test-prejoin" element={<TestPreJoin />} />
-            <Route path="/test-media" element={<MediaTest />} />
-          </>
-        )}
-
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

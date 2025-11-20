@@ -6,26 +6,36 @@ Professional podcast recording application with local high-quality recording for
 
 - 🎙️ **Local Recording**: Each participant records locally for maximum quality
 - 🎬 **Separate Tracks**: Individual audio/video tracks per participant for professional editing
-- 🌐 **WebRTC P2P**: Direct peer-to-peer communication for low latency
-- 🚀 **SFU Support**: Scalable to 5+ participants with LiveKit integration
-- 🎯 **Cross-platform**: Windows and macOS support via Tauri
-- 🔒 **Privacy-first**: No media data passes through servers, only signaling
+- 🌐 **Cloudflare Calls SFU**: Scalable WebRTC with Selective Forwarding Unit
+- 🚀 **Global Edge**: Signaling server deployed on Cloudflare Workers worldwide
+- 🎯 **Cross-platform**: macOS support via Tauri (Windows coming soon)
+- 🔒 **Privacy-first**: Media routed through Cloudflare's secure infrastructure
 
 ## Architecture
 
 This is a monorepo managed with pnpm workspaces containing:
 
 - `apps/desktop` - Tauri desktop application with React
-- `apps/signaling` - WebRTC signaling server (Rust/Axum)
-- `packages/proto` - Shared TypeScript types and protocols
+- `apps/signaling` - Cloudflare Worker for WebRTC signaling
 - `packages/ui` - Reusable React components
+
+```
+podcast-recorder/
+├── apps/
+│   ├── desktop/          # Tauri + React desktop app
+│   └── signaling/        # Cloudflare Worker signaling server
+├── packages/
+│   └── ui/               # Reusable UI components
+├── pnpm-workspace.yaml   # Workspace configuration
+└── package.json          # Root package configuration
+```
 
 ## Prerequisites
 
 - Node.js >= 18
 - pnpm >= 8
-- Rust >= 1.70
-- Tauri CLI
+- Rust >= 1.70 (for Tauri)
+- Cloudflare account (for signaling server)
 
 ## Installation
 
@@ -35,73 +45,105 @@ npm install -g pnpm
 
 # Install dependencies
 pnpm install
-
-# Install Rust dependencies (for signaling server)
-cd apps/signaling && cargo build
 ```
 
 ## Development
 
 ```bash
-# Run all apps in development mode
-pnpm dev
+# Run desktop app in development mode
+pnpm dev:desktop
 
-# Run specific apps
-pnpm dev:desktop   # Desktop app only
-pnpm dev:signaling # Signaling server only
+# Run signaling server locally
+pnpm dev:signaling
 
 # Build all packages
 pnpm build
+
+# Build desktop app for distribution
+pnpm tauri:build
 
 # Lint and format
 pnpm lint
 pnpm format
 ```
 
-## Project Structure
+## Deployment
 
+### Signaling Server (Cloudflare Worker)
+
+```bash
+cd apps/signaling
+
+# Configure secrets
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put CLOUDFLARE_APP_SECRET
+
+# Deploy
+npx wrangler deploy
 ```
-podcast-recorder/
-├── apps/
-│   ├── desktop/          # Tauri + React desktop app
-│   └── signaling/        # Rust WebRTC signaling server
-├── packages/
-│   ├── proto/            # Shared types and protocols
-│   └── ui/               # Reusable UI components
-├── pnpm-workspace.yaml   # Workspace configuration
-└── package.json          # Root package configuration
+
+### Desktop App
+
+```bash
+pnpm tauri:build
 ```
 
-## Scripts
+The DMG will be created in `apps/desktop/src-tauri/target/release/bundle/dmg/`.
 
-- `pnpm dev` - Start all apps in development mode
-- `pnpm build` - Build all packages
-- `pnpm test` - Run tests
-- `pnpm lint` - Lint all packages
-- `pnpm clean` - Clean all build artifacts
+## Configuration
+
+### Desktop App
+
+Create `apps/desktop/.env`:
+
+```env
+VITE_SIGNALING_SERVER_URL=https://your-worker.workers.dev
+```
+
+### Signaling Server
+
+Configure in `apps/signaling/wrangler.jsonc`:
+
+```json
+{
+  "vars": {
+    "CLOUDFLARE_APP_ID": "your-cloudflare-calls-app-id",
+    "CORS_ORIGIN": "*"
+  }
+}
+```
 
 ## Technology Stack
 
 ### Frontend
 
 - **Tauri** - Desktop application framework
-- **React 18** - UI framework
+- **React 19** - UI framework
 - **TypeScript** - Type safety
 - **Zustand** - State management
 - **Tailwind CSS** - Styling
 
 ### Backend
 
-- **Rust** - Performance and reliability
-- **Axum** - Web framework
-- **Tokio** - Async runtime
-- **Tungstenite** - WebSocket support
+- **Cloudflare Workers** - Edge computing
+- **Durable Objects** - Stateful WebSocket rooms
+- **KV Storage** - Room metadata
 
 ### WebRTC
 
-- **P2P Mesh** - Direct connections for 2-4 participants
-- **LiveKit SFU** - Scalable solution for 5+ participants
-- **TURN Server** - NAT traversal with Coturn
+- **Cloudflare Calls** - SFU for scalable media routing
+- **STUN/TURN** - NAT traversal via Cloudflare
+
+## Scripts
+
+| Command              | Description                        |
+| -------------------- | ---------------------------------- |
+| `pnpm dev:desktop`   | Start desktop app in dev mode      |
+| `pnpm dev:signaling` | Start signaling server locally     |
+| `pnpm build`         | Build all packages                 |
+| `pnpm tauri:build`   | Build desktop app for distribution |
+| `pnpm lint`          | Lint all packages                  |
+| `pnpm format`        | Format all files                   |
 
 ## Contributing
 
@@ -109,4 +151,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## License
 
-MIT
+MIT + Commons Clause - See [LICENSE](LICENSE)
+
+This means you can use, modify, and distribute freely, but you cannot sell the software commercially.

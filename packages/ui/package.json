@@ -21,7 +21,6 @@
     "clean": "rimraf dist node_modules"
   },
   "dependencies": {
-    "@podcast-recorder/proto": "workspace:*",
     "clsx": "^2.0.0"
   },
   "peerDependencies": {

@@ -58,19 +58,11 @@ jobs:
           node-version: '18'
           cache: 'pnpm'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: 'apps/signaling'
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build
+      - name: Build UI package
+        run: pnpm --filter @podcast-recorder/ui build
 
   typecheck:
     name: Type Check
@@ -93,14 +85,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm --filter @podcast-recorder/proto build && pnpm --filter @podcast-recorder/ui build
+      - name: Build UI package
+        run: pnpm --filter @podcast-recorder/ui build
 
       - name: Run TypeScript type check
         run: pnpm typecheck
 
   build:
-    name: Build
+    name: Build Desktop
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -122,13 +114,17 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'apps/signaling'
+          workspaces: 'apps/desktop/src-tauri'
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -143,31 +139,7 @@ jobs:
           path: |
             packages/*/dist
             apps/desktop/dist
-            apps/signaling/target/release
           retention-days: 5
-
-  rust-lint:
-    name: Rust Lint & Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: 'apps/signaling'
-
-      - name: Check Rust formatting
-        run: cd apps/signaling && cargo fmt -- --check
-
-      - name: Run Clippy
-        run: cd apps/signaling && cargo clippy -- -D warnings
 
   test:
     name: Tests
@@ -195,7 +167,7 @@ jobs:
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, build-packages, typecheck, build, rust-lint, test]
+    needs: [lint, build-packages, typecheck, build, test]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -204,7 +176,6 @@ jobs:
              [ "${{ needs.build-packages.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ] || \
-             [ "${{ needs.rust-lint.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ]; then
             echo "❌ CI checks failed"
             exit 1
