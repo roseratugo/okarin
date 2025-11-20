@@ -11,7 +11,9 @@
       "core:path:default",
       "core:os:default",
       "core:shell:allow-open",
-      "core:notification:default"
+      "core:notification:default",
+      "updater:default",
+      "process:allow-restart"
     ]
   }
 }
