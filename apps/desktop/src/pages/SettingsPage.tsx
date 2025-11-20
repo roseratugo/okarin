@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../stores';
 import DeviceSelector from '../components/DeviceSelector';
+import { VIDEO_QUALITY_PRESETS } from '../lib/videoQualityPresets';
+import { useVideoCapabilities } from '../hooks/useVideoCapabilities';
 import './SettingsPage.css';
 
 export default function SettingsPage(): ReactElement {
@@ -30,6 +32,9 @@ export default function SettingsPage(): ReactElement {
   const [appVersion, setAppVersion] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Get supported video capabilities from camera
+  const videoCapabilities = useVideoCapabilities();
 
   useEffect(() => {
     invoke<string>('get_app_version').then(setAppVersion).catch(console.error);
@@ -173,23 +178,47 @@ export default function SettingsPage(): ReactElement {
 
           <div className="settings-card">
             <h2>Video Settings</h2>
+            {videoCapabilities.isLoading && (
+              <p className="settings-help" style={{ marginBottom: '1rem' }}>
+                Detecting camera capabilities...
+              </p>
+            )}
+            {!videoCapabilities.isLoading && (
+              <p className="settings-help" style={{ marginBottom: '1rem' }}>
+                Max resolution: {videoCapabilities.maxWidth}x{videoCapabilities.maxHeight} @{' '}
+                {videoCapabilities.maxFrameRate}fps
+              </p>
+            )}
             <div className="settings-grid">
               <div className="settings-form-group">
-                <label className="settings-label">Video Quality</label>
+                <label className="settings-label">Video Quality Preset</label>
                 <select
                   value={videoSettings.quality}
                   onChange={(e) => {
+                    const quality = e.target.value as 'low' | 'medium' | 'high' | 'ultra';
+                    const preset = VIDEO_QUALITY_PRESETS[quality];
                     updateVideoSettings({
-                      quality: e.target.value as 'low' | 'medium' | 'high' | 'ultra',
+                      quality,
+                      width: preset.width,
+                      height: preset.height,
                     });
                     setHasChanges(true);
                   }}
                   className="settings-select"
+                  disabled={videoCapabilities.isLoading}
                 >
-                  <option value="low">Low (360p)</option>
-                  <option value="medium">Medium (720p)</option>
-                  <option value="high">High (1080p)</option>
-                  <option value="ultra">Ultra (4K)</option>
+                  {videoCapabilities.supportedQualities.includes('low') && (
+                    <option value="low">Low - 480p (SD)</option>
+                  )}
+                  {videoCapabilities.supportedQualities.includes('medium') && (
+                    <option value="medium">Medium - 720p (HD)</option>
+                  )}
+                  {videoCapabilities.supportedQualities.includes('high') && (
+                    <option value="high">High - 1080p (Full HD)</option>
+                  )}
+                  {videoCapabilities.supportedQualities.includes('ultra') && (
+                    <option value="ultra">Ultra - 1440p (2K)</option>
+                  )}
                 </select>
               </div>
 
@@ -202,11 +231,67 @@ export default function SettingsPage(): ReactElement {
                     setHasChanges(true);
                   }}
                   className="settings-select"
+                  disabled={videoCapabilities.isLoading}
                 >
-                  <option value="15">15 FPS</option>
-                  <option value="24">24 FPS</option>
-                  <option value="30">30 FPS</option>
-                  <option value="60">60 FPS</option>
+                  {15 <= videoCapabilities.maxFrameRate && <option value="15">15 FPS</option>}
+                  {24 <= videoCapabilities.maxFrameRate && <option value="24">24 FPS</option>}
+                  {30 <= videoCapabilities.maxFrameRate && <option value="30">30 FPS</option>}
+                  {60 <= videoCapabilities.maxFrameRate && <option value="60">60 FPS</option>}
+                </select>
+              </div>
+
+              <div className="settings-form-group">
+                <label className="settings-label">Resolution Width</label>
+                <input
+                  type="number"
+                  value={videoSettings.width}
+                  onChange={(e) => {
+                    updateVideoSettings({ width: Number(e.target.value) });
+                    setHasChanges(true);
+                  }}
+                  className="settings-input"
+                  min="640"
+                  max={videoCapabilities.maxWidth}
+                  step="1"
+                  disabled={videoCapabilities.isLoading}
+                />
+                <small className="settings-help">
+                  Current: {videoSettings.width}px (Max: {videoCapabilities.maxWidth}px)
+                </small>
+              </div>
+
+              <div className="settings-form-group">
+                <label className="settings-label">Resolution Height</label>
+                <input
+                  type="number"
+                  value={videoSettings.height}
+                  onChange={(e) => {
+                    updateVideoSettings({ height: Number(e.target.value) });
+                    setHasChanges(true);
+                  }}
+                  className="settings-input"
+                  min="480"
+                  max={videoCapabilities.maxHeight}
+                  step="1"
+                  disabled={videoCapabilities.isLoading}
+                />
+                <small className="settings-help">
+                  Current: {videoSettings.height}px (Max: {videoCapabilities.maxHeight}px)
+                </small>
+              </div>
+
+              <div className="settings-form-group">
+                <label className="settings-label">Aspect Ratio</label>
+                <select
+                  value={videoSettings.aspectRatio}
+                  onChange={(e) => {
+                    updateVideoSettings({ aspectRatio: e.target.value });
+                    setHasChanges(true);
+                  }}
+                  className="settings-select"
+                >
+                  <option value="16:9">16:9 (Widescreen)</option>
+                  <option value="4:3">4:3 (Standard)</option>
                 </select>
               </div>
             </div>
