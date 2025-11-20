@@ -28,6 +28,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update version in package.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Update root package.json
+          jq ".version = \"$VERSION\"" package.json > tmp.json && mv tmp.json package.json
+          # Update desktop package.json
+          jq ".version = \"$VERSION\"" apps/desktop/package.json > tmp.json && mv tmp.json apps/desktop/package.json
+          # Update tauri.conf.json
+          jq ".version = \"$VERSION\"" apps/desktop/src-tauri/tauri.conf.json > tmp.json && mv tmp.json apps/desktop/src-tauri/tauri.conf.json
+          # Update Cargo.toml version
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" apps/desktop/src-tauri/Cargo.toml && rm -f apps/desktop/src-tauri/Cargo.toml.bak
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -37,7 +57,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'pnpm'
 
       - name: Setup Rust
