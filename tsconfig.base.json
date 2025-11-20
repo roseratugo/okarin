@@ -22,8 +22,6 @@
     "composite": true,
     "incremental": true,
     "paths": {
-      "@podcast-recorder/proto": ["./packages/proto/dist"],
-      "@podcast-recorder/proto/*": ["./packages/proto/dist/*"],
       "@podcast-recorder/ui": ["./packages/ui/dist"],
       "@podcast-recorder/ui/*": ["./packages/ui/dist/*"]
     }
