@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "signaling-server",
+	"name": "signaling",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-20",
 	"migrations": [
