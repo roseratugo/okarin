@@ -65,9 +65,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@podcast-recorder/proto':
-        specifier: workspace:*
-        version: link:../../packages/proto
       '@podcast-recorder/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -143,41 +140,16 @@ importers:
         version: 7.1.12(@types/node@24.9.1)
 
   apps/signaling:
-    dependencies:
-      '@podcast-recorder/proto':
-        specifier: workspace:*
-        version: link:../../packages/proto
     devDependencies:
-      '@types/node':
-        specifier: ^24.9.1
-        version: 24.9.1
-      esbuild:
-        specifier: ^0.25.11
-        version: 0.25.11
-      eslint:
-        specifier: ^9.38.0
-        version: 9.38.0
-
-  packages/proto:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.9.1
-        version: 24.9.1
-      eslint:
-        specifier: ^9.38.0
-        version: 9.38.0
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.0(typescript@5.9.3)
       typescript:
-        specifier: ^5.3.3
+        specifier: ^5.5.2
         version: 5.9.3
+      wrangler:
+        specifier: ^4.49.1
+        version: 4.49.1
 
   packages/ui:
     dependencies:
-      '@podcast-recorder/proto':
-        specifier: workspace:*
-        version: link:../proto
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
@@ -206,15 +178,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-
-  signaling-server:
-    devDependencies:
-      typescript:
-        specifier: ^5.5.2
-        version: 5.9.3
-      wrangler:
-        specifier: ^4.49.1
-        version: 4.49.1
 
 packages:
 
