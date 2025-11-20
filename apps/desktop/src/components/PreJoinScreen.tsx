@@ -33,6 +33,7 @@ export default function PreJoinScreen({
 
   const selectedAudioInput = useSettingsStore((state) => state.selectedAudioInput);
   const selectedVideoInput = useSettingsStore((state) => state.selectedVideoInput);
+  const audioSettings = useSettingsStore((state) => state.audioSettings);
 
   const initializeMedia = useCallback(async () => {
     try {
@@ -44,14 +45,29 @@ export default function PreJoinScreen({
 
       const constraints: MediaStreamConstraints = {
         video: videoEnabled
-          ? selectedVideoInput && selectedVideoInput !== ''
-            ? { deviceId: { exact: selectedVideoInput } }
-            : true
+          ? {
+              ...(selectedVideoInput && selectedVideoInput !== ''
+                ? { deviceId: { exact: selectedVideoInput } }
+                : {}),
+              // Request highest quality, let browser pick best available
+              width: { ideal: 4096 },
+              height: { ideal: 2160 },
+              frameRate: { ideal: 60 },
+              aspectRatio: { ideal: 16 / 9 },
+            }
           : false,
         audio: audioEnabled
-          ? selectedAudioInput && selectedAudioInput !== ''
-            ? { deviceId: { exact: selectedAudioInput } }
-            : true
+          ? {
+              ...(selectedAudioInput && selectedAudioInput !== ''
+                ? { deviceId: { exact: selectedAudioInput } }
+                : {}),
+              // Force highest audio quality (48kHz is WebRTC max)
+              sampleRate: { ideal: 48000 },
+              channelCount: { ideal: 2 },
+              echoCancellation: audioSettings.echoCancellation,
+              noiseSuppression: audioSettings.noiseSuppression,
+              autoGainControl: audioSettings.autoGainControl,
+            }
           : false,
       };
 
@@ -93,7 +109,7 @@ export default function PreJoinScreen({
         setPermissionError(`Unable to access camera or microphone`);
       }
     }
-  }, [stream, videoEnabled, audioEnabled, selectedVideoInput, selectedAudioInput]);
+  }, [stream, videoEnabled, audioEnabled, selectedVideoInput, selectedAudioInput, audioSettings]);
 
   useEffect(() => {
     const setupMedia = async () => {

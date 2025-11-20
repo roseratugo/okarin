@@ -1,8 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
 import Button, { IconButton } from '../components/Button';
-import { useRoomStore, useRecordingStore } from '../stores';
+import { useRoomStore, useRecordingStore, useSettingsStore } from '../stores';
 import { WebRTCManager } from '../lib/WebRTCManager';
+import { useMediaRecorder } from '../hooks/useMediaRecorder';
+import * as Recording from '../lib/recording';
 import './RecordingPage.css';
 import type { ReactElement } from 'react';
 
@@ -38,10 +41,19 @@ export default function RecordingPage(): ReactElement {
   const { isRecording, recordingTime, startRecording, stopRecording, incrementRecordingTime } =
     useRecordingStore();
 
+  // Settings store
+  const { audioSettings, videoSettings } = useSettingsStore();
+
+  // Media recorder hook for Rust integration
+  const mediaRecorder = useMediaRecorder();
+
   // Local UI state
   const [isLeaving, setIsLeaving] = useState(false);
   const [showInviteDropdown, setShowInviteDropdown] = useState(false);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [showRecordingInfo, setShowRecordingInfo] = useState(false);
+  const [recordingParticipantsCount, setRecordingParticipantsCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -49,6 +61,7 @@ export default function RecordingPage(): ReactElement {
   const inviteDropdownRef = useRef<HTMLDivElement>(null);
   const webrtcManagerRef = useRef<WebRTCManager | null>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const participantsRecordingRef = useRef<Set<string>>(new Set());
 
   const setupVoiceDetection = useCallback(
     (stream: MediaStream) => {
@@ -148,19 +161,47 @@ export default function RecordingPage(): ReactElement {
       try {
         const constraints: MediaStreamConstraints = {
           video: mediaSettings.videoEnabled
-            ? mediaSettings.selectedVideoDevice && mediaSettings.selectedVideoDevice !== ''
-              ? { deviceId: { exact: mediaSettings.selectedVideoDevice } }
-              : true
+            ? {
+                ...(mediaSettings.selectedVideoDevice && mediaSettings.selectedVideoDevice !== ''
+                  ? { deviceId: { exact: mediaSettings.selectedVideoDevice } }
+                  : {}),
+                // Request highest quality, let browser pick best available
+                width: { ideal: 4096 },
+                height: { ideal: 2160 },
+                frameRate: { ideal: 60 },
+                aspectRatio: { ideal: videoSettings.aspectRatio === '16:9' ? 16 / 9 : 4 / 3 },
+              }
             : false,
           audio: mediaSettings.audioEnabled
-            ? mediaSettings.selectedAudioDevice && mediaSettings.selectedAudioDevice !== ''
-              ? { deviceId: { exact: mediaSettings.selectedAudioDevice } }
-              : true
+            ? {
+                ...(mediaSettings.selectedAudioDevice && mediaSettings.selectedAudioDevice !== ''
+                  ? { deviceId: { exact: mediaSettings.selectedAudioDevice } }
+                  : {}),
+                // Force highest audio quality (48kHz is WebRTC max)
+                sampleRate: { ideal: 48000 },
+                channelCount: { ideal: 2 },
+                echoCancellation: audioSettings.echoCancellation,
+                noiseSuppression: audioSettings.noiseSuppression,
+                autoGainControl: audioSettings.autoGainControl,
+              }
             : false,
         };
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         setLocalStream(stream);
+
+        // Log actual video resolution
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings();
+          console.log('Video track settings:', {
+            width: settings.width,
+            height: settings.height,
+            frameRate: settings.frameRate,
+            aspectRatio: settings.aspectRatio,
+            deviceId: settings.deviceId,
+          });
+        }
 
         if (videoRef.current && mediaSettings.videoEnabled) {
           videoRef.current.srcObject = stream;
@@ -195,6 +236,7 @@ export default function RecordingPage(): ReactElement {
     return () => {
       cleanupVoiceDetection();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mediaSettings,
     setupVoiceDetection,
@@ -252,7 +294,7 @@ export default function RecordingPage(): ReactElement {
             maxPeers: 4,
           },
           {
-            onParticipantJoined: (participantId, participantName) => {
+            onParticipantJoined: async (participantId, participantName) => {
               console.log(`Participant joined: ${participantId} (${participantName})`);
               addParticipant({
                 id: participantId,
@@ -267,15 +309,31 @@ export default function RecordingPage(): ReactElement {
               if (webrtcManagerRef.current && localStream) {
                 webrtcManagerRef.current.sendCurrentTrackStates(participantId, localStream);
               }
+
+              // If recording is active, add this participant to recording
+              if (isRecording && recordingId) {
+                console.log(`Adding participant ${participantName} to active recording`);
+                // Will start recording their stream when onRemoteTrack is called
+              }
             },
 
             onParticipantLeft: (participantId) => {
               console.log(`Participant left: ${participantId}`);
               removeParticipant(participantId);
               remoteVideoRefs.current.delete(participantId);
+
+              // Stop recording for this participant if recording is active
+              if (isRecording && participantsRecordingRef.current.has(participantId)) {
+                mediaRecorder.stopRecording(participantId).catch((err) => {
+                  console.error(`Error stopping recording for ${participantId}:`, err);
+                });
+                participantsRecordingRef.current.delete(participantId);
+                setRecordingParticipantsCount(participantsRecordingRef.current.size);
+                console.log(`Stopped recording for participant: ${participantId}`);
+              }
             },
 
-            onRemoteTrack: (participantId, track, stream) => {
+            onRemoteTrack: async (participantId, track, stream) => {
               console.log(`Remote track received from ${participantId}: ${track.kind}`);
 
               // Get or create video element for this participant
@@ -295,6 +353,35 @@ export default function RecordingPage(): ReactElement {
 
               // Update participant with stream
               updateParticipant(participantId, { stream });
+
+              // If recording is active and we haven't started recording this participant yet
+              if (
+                isRecording &&
+                recordingId &&
+                !participantsRecordingRef.current.has(participantId)
+              ) {
+                const participant = participants.find((p) => p.id === participantId);
+                if (participant) {
+                  try {
+                    // Add participant track to Rust recording
+                    await Recording.addParticipantTrack(
+                      participantId,
+                      participant.name,
+                      true, // record audio
+                      true // record video
+                    );
+
+                    // Start MediaRecorder for this participant
+                    await mediaRecorder.startRecording(participantId, stream);
+                    participantsRecordingRef.current.add(participantId);
+                    setRecordingParticipantsCount(participantsRecordingRef.current.size);
+
+                    console.log(`Started recording for new participant: ${participant.name}`);
+                  } catch (error) {
+                    console.error(`Failed to start recording for ${participant.name}:`, error);
+                  }
+                }
+              }
             },
 
             onConnectionStateChange: (participantId, state) => {
@@ -336,6 +423,7 @@ export default function RecordingPage(): ReactElement {
         webrtcManagerRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     roomId,
     localStream,
@@ -363,13 +451,105 @@ export default function RecordingPage(): ReactElement {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  const handleToggleRecording = useCallback(() => {
+  const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
-      stopRecording();
+      // Stop recording
+      try {
+        console.log('Stopping recording...');
+
+        // Stop all participant recorders (process and send final files)
+        await Promise.all(
+          participants.map((participant) => mediaRecorder.stopRecording(participant.id))
+        );
+
+        // Stop Rust recording
+        const metadata = await Recording.stopRecording();
+        console.log('Recording stopped:', metadata);
+
+        // Update UI state
+        stopRecording();
+        setRecordingId(null);
+        participantsRecordingRef.current.clear();
+        setRecordingParticipantsCount(0);
+
+        // Show success message with details
+        const participantCount = Object.keys(metadata.participants).length;
+        const duration = `${Math.floor(metadata.durationSeconds / 60)}:${(metadata.durationSeconds % 60).toString().padStart(2, '0')}`;
+
+        alert(
+          `Recording saved!\n\n` +
+            `Duration: ${duration}\n` +
+            `Participants: ${participantCount}\n` +
+            `Location: ${metadata.outputDirectory}`
+        );
+      } catch (error) {
+        console.error('Failed to stop recording:', error);
+        alert(`Failed to stop recording: ${error}`);
+      }
     } else {
-      startRecording();
+      // Start recording
+      try {
+        console.log('Starting recording...');
+
+        // Get recording directory
+        const outputDir = await invoke<string>('get_recording_directory');
+
+        // Start Rust recording session with settings from store
+        const recId = await Recording.startRecording({
+          roomId: roomId || 'unknown',
+          outputDir,
+          audioSampleRate: audioSettings.sampleRate,
+          audioChannels: audioSettings.channelCount,
+          videoWidth: videoSettings.width,
+          videoHeight: videoSettings.height,
+          videoFps: videoSettings.frameRate,
+        });
+
+        console.log('Recording started with ID:', recId);
+        setRecordingId(recId);
+
+        // Add all current participants to recording
+        for (const participant of participants) {
+          const stream = participant.id === 'self' ? localStream : participant.stream;
+          if (!stream) continue;
+
+          try {
+            // Add participant track to Rust recording
+            await Recording.addParticipantTrack(
+              participant.id,
+              participant.name,
+              true, // record audio
+              true // record video
+            );
+
+            // Start MediaRecorder for this participant
+            await mediaRecorder.startRecording(participant.id, stream);
+            participantsRecordingRef.current.add(participant.id);
+            setRecordingParticipantsCount(participantsRecordingRef.current.size);
+
+            console.log(`Started recording for participant: ${participant.name}`);
+          } catch (error) {
+            console.error(`Failed to add participant ${participant.name}:`, error);
+          }
+        }
+
+        // Update UI state
+        startRecording();
+      } catch (error) {
+        console.error('Failed to start recording:', error);
+        alert(`Failed to start recording: ${error}`);
+      }
     }
-  }, [isRecording, startRecording, stopRecording]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isRecording,
+    startRecording,
+    stopRecording,
+    roomId,
+    participants,
+    localStream,
+    mediaRecorder,
+  ]);
 
   const handleToggleMute = useCallback(() => {
     const selfParticipant = participants.find((p) => p.id === 'self');
@@ -532,10 +712,48 @@ export default function RecordingPage(): ReactElement {
 
           <div className="recording-header-right">
             {isRecording && (
-              <div className="recording-timer">
-                <span className="recording-indicator"></span>
-                <span className="recording-time">{formatTime(recordingTime)}</span>
-              </div>
+              <>
+                <div className="recording-timer">
+                  <span className="recording-indicator"></span>
+                  <span className="recording-time">{formatTime(recordingTime)}</span>
+                </div>
+                <button
+                  onClick={() => setShowRecordingInfo(!showRecordingInfo)}
+                  className="recording-info-toggle"
+                  title="Recording Info"
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#3b82f6',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                  }}
+                >
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Info
+                </button>
+              </>
             )}
             <Button
               onClick={handleLeaveRoom}
@@ -559,6 +777,131 @@ export default function RecordingPage(): ReactElement {
           </div>
         </div>
       </header>
+
+      {showRecordingInfo && isRecording && (
+        <div
+          style={{
+            background: 'rgba(17, 24, 39, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '12px',
+            padding: '20px',
+            margin: '16px 24px',
+            color: '#e5e7eb',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'start',
+              marginBottom: '16px',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#f3f4f6' }}>
+              Recording Information
+            </h3>
+            <button
+              onClick={() => setShowRecordingInfo(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                padding: '4px',
+              }}
+              title="Close"
+            >
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '16px',
+            }}
+          >
+            <div>
+              <h4
+                style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: '#9ca3af',
+                }}
+              >
+                Recording ID
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', fontFamily: 'monospace', color: '#f3f4f6' }}>
+                {recordingId || 'Loading...'}
+              </p>
+            </div>
+
+            <div>
+              <h4
+                style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: '#9ca3af',
+                }}
+              >
+                Video Settings
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>
+                {videoSettings.width}x{videoSettings.height} @ {videoSettings.frameRate}fps
+              </p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#9ca3af' }}>
+                Aspect Ratio: {videoSettings.aspectRatio}
+              </p>
+            </div>
+
+            <div>
+              <h4
+                style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: '#9ca3af',
+                }}
+              >
+                Audio Settings
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>
+                {audioSettings.sampleRate / 1000}kHz • {audioSettings.channelCount} ch
+              </p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#9ca3af' }}>
+                {audioSettings.echoCancellation && 'Echo Cancellation • '}
+                {audioSettings.noiseSuppression && 'Noise Suppression'}
+              </p>
+            </div>
+
+            <div>
+              <h4
+                style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: '#9ca3af',
+                }}
+              >
+                Participants Recording
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>
+                {recordingParticipantsCount} / {participants.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="recording-main">
         <div className="recording-video-section">

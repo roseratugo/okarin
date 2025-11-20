@@ -17,6 +17,8 @@ export interface AudioSettings {
 
 export interface VideoSettings {
   quality: VideoQuality;
+  width: number;
+  height: number;
   frameRate: number;
   aspectRatio: string;
 }
@@ -66,15 +68,17 @@ const initialState: SettingsState = {
   theme: 'system',
   language: 'en',
   audioSettings: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
     sampleRate: 48000,
     channelCount: 2,
     quality: 'high',
   },
   videoSettings: {
-    quality: 'high',
+    quality: 'ultra',
+    width: 2560,
+    height: 1440,
     frameRate: 30,
     aspectRatio: '16:9',
   },
