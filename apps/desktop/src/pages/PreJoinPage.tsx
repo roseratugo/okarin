@@ -1,145 +1,156 @@
-import { useState, useEffect, useRef, useCallback, ReactElement } from 'react';
+import { useState, useEffect, useRef, type ReactElement } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AbstractBackground } from '../components/ui';
-import AudioVisualizer from '../components/AudioVisualizer';
-import DeviceSelector from '../components/DeviceSelector';
+import { AbstractBackground, Button } from '../components/ui';
+import { useMediaDevices } from '../hooks/useMediaDevices';
 import { useSettingsStore } from '../stores';
 import { joinRoom } from '../lib/signalingApi';
 import './PreJoinPage.css';
+
+type RoomData = {
+  roomName: string;
+  userName: string;
+};
 
 export default function PreJoinPage(): ReactElement {
   const navigate = useNavigate();
   const { roomId } = useParams<{ roomId: string }>();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
-  const [error, setError] = useState('');
+  const [speakerEnabled, setSpeakerEnabled] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState('');
 
+  // Get room data from session storage
   const roomData = sessionStorage.getItem('pendingRoom');
-  const { roomName, userName } = roomData ? JSON.parse(roomData) : { roomName: '', userName: '' };
+  const { roomName, userName }: RoomData = roomData
+    ? JSON.parse(roomData)
+    : { roomName: '', userName: '' };
 
+  // Settings store
   const selectedAudioInput = useSettingsStore((state) => state.selectedAudioInput);
   const selectedVideoInput = useSettingsStore((state) => state.selectedVideoInput);
-  const audioSettings = useSettingsStore((state) => state.audioSettings);
+  const selectedAudioOutput = useSettingsStore((state) => state.selectedAudioOutput);
+  const setSelectedAudioInput = useSettingsStore((state) => state.setSelectedAudioInput);
+  const setSelectedVideoInput = useSettingsStore((state) => state.setSelectedVideoInput);
+  const setSelectedAudioOutput = useSettingsStore((state) => state.setSelectedAudioOutput);
 
-  const initializeMedia = useCallback(async () => {
-    try {
-      setError('');
+  // Media devices
+  const { audioInputDevices, audioOutputDevices, videoInputDevices } = useMediaDevices();
 
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+  // Format room ID for display
+  const formattedRoomId = roomId ? `${roomId.slice(0, 3)}-${roomId.slice(3)}` : '';
+  const displayRoomName = roomName || `Room ${formattedRoomId}`;
 
-      const constraints: MediaStreamConstraints = {
-        video: videoEnabled
-          ? {
-              ...(selectedVideoInput && selectedVideoInput !== ''
-                ? { deviceId: { exact: selectedVideoInput } }
-                : {}),
-              width: { ideal: 4096 },
-              height: { ideal: 2160 },
-              frameRate: { ideal: 60 },
-              aspectRatio: { ideal: 16 / 9 },
-            }
-          : false,
-        audio: audioEnabled
-          ? {
-              ...(selectedAudioInput && selectedAudioInput !== ''
-                ? { deviceId: { exact: selectedAudioInput } }
-                : {}),
-              sampleRate: { ideal: 48000 },
-              channelCount: { ideal: 2 },
-              echoCancellation: audioSettings.echoCancellation,
-              noiseSuppression: audioSettings.noiseSuppression,
-              autoGainControl: audioSettings.autoGainControl,
-            }
-          : false,
-      };
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      setStream(mediaStream);
-
-      if (videoRef.current && videoEnabled) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      const error = err as { name?: string };
-      if (error.name === 'NotAllowedError') {
-        setError('Please allow camera and microphone access');
-      } else if (error.name === 'NotFoundError') {
-        setError('No camera or microphone found');
-      } else if (error.name === 'OverconstrainedError') {
-        try {
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({
-            video: videoEnabled,
-            audio: audioEnabled,
-          });
-          setStream(fallbackStream);
-          if (videoRef.current && videoEnabled) {
-            videoRef.current.srcObject = fallbackStream;
-          }
-        } catch {
-          setError('Unable to access camera or microphone');
-        }
-      } else {
-        setError('Unable to access camera or microphone');
-      }
-    }
-  }, [stream, videoEnabled, audioEnabled, selectedVideoInput, selectedAudioInput, audioSettings]);
-
+  // Redirect if no room data
   useEffect(() => {
     if (!roomId || !userName) {
       navigate('/');
-      return;
     }
+  }, [roomId, userName, navigate]);
 
-    const setupMedia = async () => {
-      if (videoEnabled || audioEnabled) {
-        await initializeMedia();
-      } else if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        setStream(null);
+  // Initialize media on mount and when device selection changes
+  useEffect(() => {
+    if (!roomId || !userName) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+
+        const constraints: MediaStreamConstraints = {
+          video: {
+            ...(selectedVideoInput ? { deviceId: { exact: selectedVideoInput } } : {}),
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 },
+          },
+          audio: {
+            ...(selectedAudioInput ? { deviceId: { exact: selectedAudioInput } } : {}),
+            sampleRate: { ideal: 48000 },
+            channelCount: { ideal: 2 },
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        };
+
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        if (cancelled) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = mediaStream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+
+        setError('');
+      } catch (err) {
+        if (cancelled) return;
+
+        const mediaError = err as { name?: string };
+        if (mediaError.name === 'NotAllowedError') {
+          setError('Please allow camera and microphone access');
+        } else if (mediaError.name === 'NotFoundError') {
+          setError('No camera or microphone found');
+        } else {
+          setError('Unable to access camera or microphone');
+        }
       }
-    };
-
-    void setupMedia();
+    })();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      cancelled = true;
+    };
+  }, [roomId, userName, selectedVideoInput, selectedAudioInput]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVideoInput, selectedAudioInput, videoEnabled, audioEnabled]);
+  }, []);
 
   const toggleVideo = () => {
-    if (stream) {
-      const videoTrack = stream.getVideoTracks()[0];
+    if (streamRef.current) {
+      const videoTrack = streamRef.current.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !videoEnabled;
       }
     }
-    setVideoEnabled(!videoEnabled);
+    setVideoEnabled((prev) => !prev);
   };
 
   const toggleAudio = () => {
-    if (stream) {
-      const audioTrack = stream.getAudioTracks()[0];
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioEnabled;
       }
     }
-    setAudioEnabled(!audioEnabled);
+    setAudioEnabled((prev) => !prev);
+  };
+
+  const toggleSpeaker = () => {
+    setSpeakerEnabled((prev) => !prev);
   };
 
   const handleJoin = async () => {
     if (!roomId) return;
 
     setIsJoining(true);
-    setError('');
 
     try {
       const response = await joinRoom(roomId, userName);
@@ -148,15 +159,15 @@ export default function PreJoinPage(): ReactElement {
         'currentRoom',
         JSON.stringify({
           roomId,
-          roomName: roomName || `Room ${roomId.slice(0, 3)}-${roomId.slice(3)}`,
+          roomName: displayRoomName,
           userName,
           participantId: response.participant_id,
           token: response.token,
           isHost: false,
           joinedAt: new Date().toISOString(),
           mediaSettings: {
-            videoEnabled: videoEnabled && (stream?.getVideoTracks().length ?? 0) > 0,
-            audioEnabled: audioEnabled && (stream?.getAudioTracks().length ?? 0) > 0,
+            videoEnabled: videoEnabled && (streamRef.current?.getVideoTracks().length ?? 0) > 0,
+            audioEnabled: audioEnabled && (streamRef.current?.getAudioTracks().length ?? 0) > 0,
             selectedVideoDevice: selectedVideoInput || '',
             selectedAudioDevice: selectedAudioInput || '',
           },
@@ -172,40 +183,50 @@ export default function PreJoinPage(): ReactElement {
   };
 
   const handleCancel = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
     sessionStorage.removeItem('pendingRoom');
     navigate('/');
   };
 
+  const getDeviceLabel = (device: { label: string }, index: number): string => {
+    return device.label || `Device ${index + 1}`;
+  };
+
   return (
     <AbstractBackground>
       <div className="prejoin-page">
-        <div className="prejoin-content">
-          <div className="prejoin-header">
-            <h1 className="prejoin-title">Ready to join?</h1>
-            <p className="prejoin-subtitle">
-              {roomName || `Room ${roomId?.slice(0, 3)}-${roomId?.slice(3)}`}
-            </p>
-          </div>
+        <div className="prejoin-container">
+          {/* Header */}
+          <h1 className="prejoin-title">Ready to join?</h1>
 
-          <div className="prejoin-main">
-            <div className="prejoin-video-section">
-              <div className="video-preview">
-                {videoEnabled ? (
-                  <video ref={videoRef} autoPlay playsInline muted className="preview-video" />
-                ) : (
-                  <div className="video-disabled">
-                    <div className="video-avatar">{userName.substring(0, 2).toUpperCase()}</div>
-                  </div>
-                )}
-              </div>
+          {/* Video preview */}
+          <div className="prejoin-preview">
+            <div className="preview-container">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`preview-video ${!videoEnabled ? 'hidden' : ''}`}
+              />
+              {!videoEnabled && (
+                <div className="preview-placeholder">
+                  <div className="preview-avatar">{userName.substring(0, 2).toUpperCase()}</div>
+                </div>
+              )}
+            </div>
 
-              <div className="media-controls">
+            {/* Media controls with dropdowns */}
+            <div className="media-controls">
+              {/* Microphone */}
+              <div className="media-control-group">
                 <button
-                  className={`control-btn ${!audioEnabled ? 'disabled' : ''}`}
+                  type="button"
+                  className={`media-toggle ${!audioEnabled ? 'media-toggle--off' : ''}`}
                   onClick={toggleAudio}
+                  aria-label={audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
                 >
                   {audioEnabled ? (
                     <svg fill="currentColor" viewBox="0 0 20 20">
@@ -225,10 +246,35 @@ export default function PreJoinPage(): ReactElement {
                     </svg>
                   )}
                 </button>
+                <div className="media-select-wrapper">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <select
+                    className="media-select"
+                    value={selectedAudioInput || ''}
+                    onChange={(e) => setSelectedAudioInput(e.target.value)}
+                  >
+                    {audioInputDevices.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {getDeviceLabel(device, index)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
+              {/* Camera */}
+              <div className="media-control-group">
                 <button
-                  className={`control-btn ${!videoEnabled ? 'disabled' : ''}`}
+                  type="button"
+                  className={`media-toggle ${!videoEnabled ? 'media-toggle--off' : ''}`}
                   onClick={toggleVideo}
+                  aria-label={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                 >
                   {videoEnabled ? (
                     <svg fill="currentColor" viewBox="0 0 20 20">
@@ -244,33 +290,93 @@ export default function PreJoinPage(): ReactElement {
                     </svg>
                   )}
                 </button>
+                <div className="media-select-wrapper">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <select
+                    className="media-select"
+                    value={selectedVideoInput || ''}
+                    onChange={(e) => setSelectedVideoInput(e.target.value)}
+                  >
+                    {videoInputDevices.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {getDeviceLabel(device, index)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {audioEnabled && stream && <AudioVisualizer stream={stream} isActive={true} />}
-            </div>
-
-            <div className="prejoin-settings">
-              <DeviceSelector />
+              {/* Speaker */}
+              <div className="media-control-group">
+                <button
+                  type="button"
+                  className={`media-toggle ${!speakerEnabled ? 'media-toggle--off' : ''}`}
+                  onClick={toggleSpeaker}
+                  aria-label={speakerEnabled ? 'Mute speaker' : 'Unmute speaker'}
+                >
+                  {speakerEnabled ? (
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </button>
+                <div className="media-select-wrapper">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <select
+                    className="media-select"
+                    value={selectedAudioOutput || ''}
+                    onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                  >
+                    {audioOutputDevices.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {getDeviceLabel(device, index)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
+          {/* Error message */}
           {error && (
-            <div className="prejoin-error">
+            <div className="prejoin-error" role="alert">
               <p>{error}</p>
             </div>
           )}
 
+          {/* Actions */}
           <div className="prejoin-actions">
-            <button onClick={handleCancel} className="prejoin-btn">
+            <Button variant="ghost" size="sm" onClick={handleCancel}>
               Cancel
-            </button>
-            <button
-              onClick={handleJoin}
-              disabled={isJoining}
-              className="prejoin-btn prejoin-btn-primary"
-            >
-              {isJoining ? 'Joining...' : 'Join Room'}
-            </button>
+            </Button>
+            <Button variant="primary" size="md" onClick={handleJoin} disabled={isJoining}>
+              {isJoining ? 'Joining...' : 'Join'}
+            </Button>
           </div>
         </div>
       </div>

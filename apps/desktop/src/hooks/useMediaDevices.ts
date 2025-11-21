@@ -31,16 +31,18 @@ export function useMediaDevices(): UseMediaDevicesReturn {
       setLoading(true);
       setError(null);
 
-      await navigator.mediaDevices
-        .getUserMedia({ audio: true, video: true })
-        .then((stream) => {
-          stream.getTracks().forEach((track) => track.stop());
-        })
-        .catch(() => {});
+      // Request permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (permErr) {
+        console.warn('Permission request failed:', permErr);
+      }
 
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       setDevices(deviceList as MediaDeviceInfo[]);
     } catch (err) {
+      console.error('Failed to enumerate devices:', err);
       setError(err as Error);
     } finally {
       setLoading(false);
