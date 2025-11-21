@@ -127,7 +127,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT + Commons Clause](LICENSE)
+[MIT + Commons Clause](LICENSE.md)
 
 Free to use, modify, and distribute. Commercial sale prohibited.
 

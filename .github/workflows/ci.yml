@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -41,32 +41,8 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm format:check
 
-  build-packages:
-    name: Build Packages
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build UI package
-        run: pnpm --filter @okarin/ui build
-
   typecheck:
     name: Type Check
-    needs: build-packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,14 +55,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build UI package
-        run: pnpm --filter @okarin/ui build
 
       - name: Run TypeScript type check
         run: pnpm typecheck
@@ -109,7 +82,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Setup Rust
@@ -155,7 +128,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -167,13 +140,12 @@ jobs:
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, build-packages, typecheck, build, test]
+    needs: [lint, typecheck, build, test]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           if [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.build-packages.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ]; then

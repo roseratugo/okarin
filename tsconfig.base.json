@@ -21,10 +21,7 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
-    "paths": {
-      "@okarin/ui": ["./packages/ui/dist"],
-      "@okarin/ui/*": ["./packages/ui/dist/*"]
-    }
+    "paths": {}
   },
   "exclude": ["node_modules", "dist", "build", "*.config.js", "*.config.ts"]
 }

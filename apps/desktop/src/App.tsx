@@ -4,12 +4,10 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import UpdateChecker from './components/UpdateChecker';
-import HomePage from './pages/HomePage';
-import RoomPage from './pages/RoomPage';
 import CreateRoomPage from './pages/CreateRoomPage';
 import JoinRoomPage from './pages/JoinRoomPage';
+import PreJoinPage from './pages/PreJoinPage';
 import RecordingPage from './pages/RecordingPage';
-import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import TestPreJoin from './pages/TestPreJoin';
 import MediaTest from './pages/MediaTest';
@@ -37,23 +35,18 @@ function App(): ReactElement {
       <UpdateChecker />
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-
-          <Route path="/room" element={<RoomPage />}>
-            <Route path="create" element={<CreateRoomPage />} />
-            <Route path="join" element={<JoinRoomPage />} />
-          </Route>
+          <Route path="/" element={<JoinRoomPage />} />
+          <Route path="/create" element={<CreateRoomPage />} />
+          <Route path="/prejoin/:roomId" element={<PreJoinPage />} />
 
           <Route
             path="/recording/:roomId"
             element={
-              <ProtectedRoute requireRoom={true} redirectTo="/room/join">
+              <ProtectedRoute requireRoom={true} redirectTo="/">
                 <RecordingPage />
               </ProtectedRoute>
             }
           />
-
-          <Route path="/settings" element={<SettingsPage />} />
 
           {process.env.NODE_ENV === 'development' && (
             <>

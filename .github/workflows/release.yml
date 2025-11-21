@@ -19,12 +19,13 @@ jobs:
           - platform: macos
             os: macos-latest
             target: aarch64-apple-darwin
-          - platform: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - platform: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+          # TODO: Re-enable Windows and Linux builds
+          # - platform: windows
+          #   os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+          # - platform: linux
+          #   os: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +60,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Setup Rust
@@ -80,9 +81,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build UI package
-        run: pnpm --filter @okarin/ui build
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -168,11 +166,11 @@ jobs:
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "darwin-aarch64": {
-                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Podcast.Recorder.app.tar.gz",
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Okarin.app.tar.gz",
                 "signature": "${MACOS_SIG}"
               },
               "windows-x86_64": {
-                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Podcast.Recorder_${VERSION}_x64-setup.msi.zip",
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/Okarin${VERSION}_x64-setup.msi.zip",
                 "signature": "${WINDOWS_SIG}"
               },
               "linux-x86_64": {

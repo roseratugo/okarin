@@ -39,6 +39,8 @@ export class CloudflareCalls {
   private transceivers: Map<string, RTCRtpTransceiver> = new Map();
   // Map mid to trackName for remote tracks
   private midToTrackName: Map<string, string> = new Map();
+  // Negotiation queue to serialize operations
+  private negotiationQueue: Promise<void> = Promise.resolve();
 
   // Event handlers
   public onTrackAdded?: (track: MediaStreamTrack, trackInfo: TrackInfo) => void;
@@ -53,11 +55,27 @@ export class CloudflareCalls {
   }
 
   /**
+   * Queue a negotiation operation to ensure they run sequentially
+   */
+  private async queueNegotiation<T>(operation: () => Promise<T>): Promise<T> {
+    const previousQueue = this.negotiationQueue;
+    let resolve: (value: void) => void;
+    this.negotiationQueue = new Promise<void>((r) => {
+      resolve = r;
+    });
+
+    try {
+      await previousQueue;
+      return await operation();
+    } finally {
+      resolve!();
+    }
+  }
+
+  /**
    * Create a new empty session with Cloudflare Calls
    */
   async createSession(signalingUrl: string): Promise<SessionInfo> {
-    console.log('createSession called');
-
     const response = await fetch(`${signalingUrl}/cloudflare/session`, {
       method: 'POST',
       headers: {
@@ -72,7 +90,6 @@ export class CloudflareCalls {
 
     const data = await response.json();
     this.sessionId = data.sessionId;
-    console.log('Session created:', this.sessionId);
 
     return {
       sessionId: data.sessionId,
@@ -131,169 +148,170 @@ export class CloudflareCalls {
    * Push local tracks to Cloudflare
    */
   async pushTracks(tracks: MediaStreamTrack[], signalingUrl: string): Promise<TrackInfo[]> {
-    if (!this.peerConnection || !this.sessionId) {
-      throw new Error('Must initialize and create session first');
-    }
-
-    const trackInfos: TrackInfo[] = [];
-
-    // Add tracks to peer connection
-    for (const track of tracks) {
-      const transceiver = this.peerConnection.addTransceiver(track, {
-        direction: 'sendonly',
-      });
-
-      const trackName = `${this.sessionId}-${track.kind}-${track.id}`;
-      this.transceivers.set(trackName, transceiver);
-
-      trackInfos.push({
-        trackId: track.id,
-        trackName,
-        kind: track.kind as 'audio' | 'video',
-      });
-    }
-
-    // Create offer
-    const offer = await this.peerConnection.createOffer();
-    await this.peerConnection.setLocalDescription(offer);
-
-    // Send to Cloudflare via our signaling server
-    const response = await fetch(
-      `${signalingUrl}/cloudflare/session/${this.sessionId}/tracks/new`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionDescription: {
-            type: 'offer',
-            sdp: offer.sdp,
-          },
-          tracks: trackInfos.map((t) => ({
-            location: 'local',
-            trackName: t.trackName,
-            mid: this.transceivers.get(t.trackName)?.mid,
-          })),
-        }),
+    return this.queueNegotiation(async () => {
+      if (!this.peerConnection || !this.sessionId) {
+        throw new Error('Must initialize and create session first');
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Failed to push tracks: ${response.statusText}`);
-    }
+      const trackInfos: TrackInfo[] = [];
 
-    const data = await response.json();
+      // Add tracks to peer connection
+      for (const track of tracks) {
+        const transceiver = this.peerConnection.addTransceiver(track, {
+          direction: 'sendonly',
+        });
 
-    // Set remote answer
-    await this.peerConnection.setRemoteDescription({
-      type: 'answer',
-      sdp: data.sessionDescription.sdp,
+        const trackName = `${this.sessionId}-${track.kind}-${track.id}`;
+        this.transceivers.set(trackName, transceiver);
+
+        trackInfos.push({
+          trackId: track.id,
+          trackName,
+          kind: track.kind as 'audio' | 'video',
+        });
+      }
+
+      // Create offer
+      const offer = await this.peerConnection.createOffer();
+      await this.peerConnection.setLocalDescription(offer);
+
+      // Send to Cloudflare via our signaling server
+      const response = await fetch(
+        `${signalingUrl}/cloudflare/session/${this.sessionId}/tracks/new`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionDescription: {
+              type: 'offer',
+              sdp: offer.sdp,
+            },
+            tracks: trackInfos.map((t) => ({
+              location: 'local',
+              trackName: t.trackName,
+              mid: this.transceivers.get(t.trackName)?.mid,
+            })),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to push tracks: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Set remote answer
+      await this.peerConnection.setRemoteDescription({
+        type: 'answer',
+        sdp: data.sessionDescription.sdp,
+      });
+
+      // Update local tracks map with server-assigned track IDs
+      for (const trackInfo of trackInfos) {
+        this.localTracks.set(trackInfo.trackName, trackInfo);
+      }
+
+      return trackInfos;
     });
-
-    // Update local tracks map with server-assigned track IDs
-    for (const trackInfo of trackInfos) {
-      this.localTracks.set(trackInfo.trackName, trackInfo);
-    }
-
-    return trackInfos;
   }
 
   /**
    * Pull remote tracks from other participants
    */
   async pullTracks(tracksToPull: PullTrackRequest[], signalingUrl: string): Promise<void> {
-    if (!this.peerConnection || !this.sessionId) {
-      throw new Error('Must initialize and create session first');
-    }
-
-    // Request tracks from Cloudflare - NO sessionDescription, Cloudflare will generate the offer
-    const response = await fetch(
-      `${signalingUrl}/cloudflare/session/${this.sessionId}/tracks/new`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tracks: tracksToPull.map((t) => ({
-            location: 'remote',
-            sessionId: t.sessionId,
-            trackName: t.trackName,
-          })),
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to pull tracks: ${response.statusText} - ${errorText}`);
-    }
-
-    const data = await response.json();
-
-    // Check for track errors and store mid → trackName mapping
-    if (data.tracks) {
-      const errors = data.tracks.filter((t: { errorCode?: string }) => t.errorCode);
-      if (errors.length > 0) {
-        console.error('Track pull errors:', errors);
-        throw new Error(
-          `Failed to pull tracks: ${errors[0].errorDescription || errors[0].errorCode}`
-        );
+    return this.queueNegotiation(async () => {
+      if (!this.peerConnection || !this.sessionId) {
+        throw new Error('Must initialize and create session first');
       }
 
-      // Store mid → trackName mapping for ontrack handler
-      for (const trackData of data.tracks) {
-        if (trackData.mid && trackData.trackName) {
-          this.midToTrackName.set(trackData.mid, trackData.trackName);
-        }
-      }
-    }
-
-    // Cloudflare returns an offer that we need to answer
-    if (!data.sessionDescription?.sdp) {
-      console.error('No session description in response:', data);
-      throw new Error('No session description returned from Cloudflare');
-    }
-
-    // Set remote offer from Cloudflare
-    await this.peerConnection.setRemoteDescription({
-      type: data.sessionDescription.type,
-      sdp: data.sessionDescription.sdp,
-    });
-
-    // Create and set local answer
-    const answer = await this.peerConnection.createAnswer();
-    await this.peerConnection.setLocalDescription(answer);
-
-    // Send answer back to Cloudflare via renegotiate
-    if (data.requiresImmediateRenegotiation) {
-      const renegotiateResponse = await fetch(
-        `${signalingUrl}/cloudflare/session/${this.sessionId}/renegotiate`,
+      // Request tracks from Cloudflare - NO sessionDescription, Cloudflare will generate the offer
+      const response = await fetch(
+        `${signalingUrl}/cloudflare/session/${this.sessionId}/tracks/new`,
         {
-          method: 'PUT',
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sessionDescription: {
-              type: 'answer',
-              sdp: answer.sdp,
-            },
+            tracks: tracksToPull.map((t) => ({
+              location: 'remote',
+              sessionId: t.sessionId,
+              trackName: t.trackName,
+            })),
           }),
         }
       );
 
-      if (!renegotiateResponse.ok) {
-        const errorText = await renegotiateResponse.text();
-        throw new Error(`Failed to renegotiate: ${renegotiateResponse.statusText} - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to pull tracks: ${response.statusText} - ${errorText}`);
       }
-    }
 
-    console.log(
-      'Successfully pulled tracks:',
-      tracksToPull.map((t) => t.trackName)
-    );
+      const data = await response.json();
+
+      // Check for track errors and store mid → trackName mapping
+      if (data.tracks) {
+        const errors = data.tracks.filter((t: { errorCode?: string }) => t.errorCode);
+        if (errors.length > 0) {
+          console.error('Track pull errors:', errors);
+          throw new Error(
+            `Failed to pull tracks: ${errors[0].errorDescription || errors[0].errorCode}`
+          );
+        }
+
+        // Store mid → trackName mapping for ontrack handler
+        for (const trackData of data.tracks) {
+          if (trackData.mid && trackData.trackName) {
+            this.midToTrackName.set(trackData.mid, trackData.trackName);
+          }
+        }
+      }
+
+      // Cloudflare returns an offer that we need to answer
+      if (!data.sessionDescription?.sdp) {
+        console.error('No session description in response:', data);
+        throw new Error('No session description returned from Cloudflare');
+      }
+
+      // Set remote offer from Cloudflare
+      await this.peerConnection.setRemoteDescription({
+        type: data.sessionDescription.type,
+        sdp: data.sessionDescription.sdp,
+      });
+
+      // Create and set local answer
+      const answer = await this.peerConnection.createAnswer();
+      await this.peerConnection.setLocalDescription(answer);
+
+      // Send answer back to Cloudflare via renegotiate
+      if (data.requiresImmediateRenegotiation) {
+        const renegotiateResponse = await fetch(
+          `${signalingUrl}/cloudflare/session/${this.sessionId}/renegotiate`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sessionDescription: {
+                type: 'answer',
+                sdp: answer.sdp,
+              },
+            }),
+          }
+        );
+
+        if (!renegotiateResponse.ok) {
+          const errorText = await renegotiateResponse.text();
+          throw new Error(
+            `Failed to renegotiate: ${renegotiateResponse.statusText} - ${errorText}`
+          );
+        }
+      }
+    });
   }
 
   /**
@@ -320,6 +338,9 @@ export class CloudflareCalls {
    * Close the connection and clean up
    */
   async close(): Promise<void> {
+    // Wait for any pending negotiations to complete
+    await this.negotiationQueue;
+
     // Stop all local tracks
     for (const transceiver of this.transceivers.values()) {
       if (transceiver.sender?.track) {
@@ -339,6 +360,7 @@ export class CloudflareCalls {
     this.transceivers.clear();
     this.midToTrackName.clear();
     this.sessionId = null;
+    this.negotiationQueue = Promise.resolve();
   }
 
   /**

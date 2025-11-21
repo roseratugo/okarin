@@ -39,6 +39,6 @@ whose value derives, entirely or substantially, from the functionality of the
 Software. Any license notice or attribution required by the License must also
 include this Commons Clause License Condition notice.
 
-Software: Podcast Recorder
+Software: Okarin
 License: MIT
-Licensor: Collectif Pixel
+Licensor: COLLECTIF PIXEL

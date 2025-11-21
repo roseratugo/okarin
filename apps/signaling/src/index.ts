@@ -308,15 +308,15 @@ export default {
 				}
 
 				const body = (await request.json()) as {
-					name: string;
+					name?: string;
 					max_participants?: number;
 					maxParticipants?: number;
 				};
-				const roomId = crypto.randomUUID();
+				const roomId = String(Math.floor(100000 + Math.random() * 900000));
 
 				const metadata: RoomMetadata = {
 					id: roomId,
-					name: body.name,
+					name: body.name || `Room ${roomId.slice(0, 3)}-${roomId.slice(3)}`,
 					createdBy: claims.email || claims.sub || 'unknown',
 					createdAt: new Date().toISOString(),
 					maxParticipants: body.max_participants || body.maxParticipants || 10,
