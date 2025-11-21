@@ -1,7 +1,16 @@
 @import './styles/global.css';
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Fonts */
+  --font-display: 'Amatic SC', cursive;
+  --font-body: 'Poppins', system-ui, sans-serif;
+
+  /* Colors - Gradient */
+  --color-primary: #2a3fff;
+  --color-primary-dark: #0b155e;
+
+  /* Apply fonts */
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
 

@@ -16,7 +16,6 @@
     "clean": "rimraf dist node_modules src-tauri/target"
   },
   "dependencies": {
-    "@okarin/ui": "workspace:*",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "^2.4.2",
     "@tauri-apps/plugin-process": "^2.3.1",

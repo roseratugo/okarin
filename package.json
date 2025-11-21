@@ -14,7 +14,7 @@
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "dev:desktop": "pnpm --filter @okarin/desktop tauri:dev",
     "dev:signaling": "pnpm --filter @okarin/signaling dev",
-    "build": "pnpm --filter @okarin/ui build && pnpm --filter @okarin/desktop build",
+    "build": "pnpm --filter @okarin/desktop build",
     "build:desktop": "pnpm --filter @okarin/desktop build",
     "build:signaling": "pnpm --filter @okarin/signaling build",
     "tauri:build": "pnpm --filter @okarin/desktop tauri:build",

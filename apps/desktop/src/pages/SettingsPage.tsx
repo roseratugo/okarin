@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
-import { Input } from '@okarin/ui';
+import { Input } from '../components/ui';
 import { invoke } from '@tauri-apps/api/core';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../stores';

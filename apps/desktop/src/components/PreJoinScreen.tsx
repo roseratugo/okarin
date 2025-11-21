@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ReactElement } from 'react';
-import { Button } from '@okarin/ui';
+import { Button } from './ui';
 import AudioVisualizer from './AudioVisualizer';
 import DeviceSelector from './DeviceSelector';
 import { useSettingsStore } from '../stores';

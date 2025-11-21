@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
-import { Input } from '@okarin/ui';
+import { Input } from '../components/ui';
 import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
 import { createRoom, joinRoom, login, getMe, AuthUser } from '../lib/signalingApi';
 import './CreateRoomPage.css';
