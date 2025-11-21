@@ -7,7 +7,7 @@ import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
   const navigate = useNavigate();
-  const [roomName] = useState('');
+  const [roomName] = useState('Recording Session');
   const [userName, setUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
@@ -64,8 +64,8 @@ export default function CreateRoomPage(): ReactElement {
   }, []);
 
   const handleCreateRoom = useCallback(async () => {
-    if (!roomName.trim() || !userName.trim()) {
-      setError('Please enter both room name and your name');
+    if (!userName.trim()) {
+      setError('Please enter your name');
       return;
     }
 
@@ -79,7 +79,7 @@ export default function CreateRoomPage(): ReactElement {
     setError('');
 
     try {
-      const response = await createRoom(roomName.trim(), authToken);
+      const response = await createRoom(authToken);
       setCreatedRoomId(response.room_id);
       setShowPreJoin(true);
       setIsCreating(false);
@@ -87,7 +87,7 @@ export default function CreateRoomPage(): ReactElement {
       setError(err instanceof Error ? err.message : 'Failed to create room. Please try again.');
       setIsCreating(false);
     }
-  }, [roomName, userName]);
+  }, [userName]);
 
   const handleJoinWithSettings = useCallback(
     async (settings: JoinSettings) => {
