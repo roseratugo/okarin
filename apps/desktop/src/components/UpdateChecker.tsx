@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import Button from './Button';
 import './UpdateChecker.css';
 
 interface UpdateInfo {
@@ -94,12 +93,12 @@ export default function UpdateChecker(): ReactElement | null {
             </div>
           ) : (
             <>
-              <Button variant="ghost" size="sm" onClick={handleDismiss}>
+              <button className="update-btn" onClick={handleDismiss}>
                 Later
-              </Button>
-              <Button variant="primary" size="sm" onClick={handleUpdate}>
+              </button>
+              <button className="update-btn update-btn-primary" onClick={handleUpdate}>
                 Update Now
-              </Button>
+              </button>
             </>
           )}
         </div>

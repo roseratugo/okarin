@@ -64,7 +64,7 @@ export async function getMe(authToken: string): Promise<{ user: AuthUser }> {
   return response.json();
 }
 
-export async function createRoom(roomName: string, authToken: string): Promise<CreateRoomResponse> {
+export async function createRoom(authToken: string): Promise<CreateRoomResponse> {
   const response = await fetch(`${SIGNALING_SERVER_URL}/api/rooms`, {
     method: 'POST',
     headers: {
@@ -72,7 +72,6 @@ export async function createRoom(roomName: string, authToken: string): Promise<C
       Authorization: `Bearer ${authToken}`,
     },
     body: JSON.stringify({
-      name: roomName,
       max_participants: 4,
     }),
   });

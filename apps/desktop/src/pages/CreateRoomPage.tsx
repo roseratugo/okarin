@@ -1,23 +1,19 @@
 import { useState, useCallback, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/Button';
-import { Input } from '@okarin/ui';
-import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
-import { createRoom, joinRoom, login, getMe, AuthUser } from '../lib/signalingApi';
+import { AbstractBackground } from '../components/ui';
+import { createRoom, login, getMe, AuthUser } from '../lib/signalingApi';
 import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
   const navigate = useNavigate();
-  const [roomName, setRoomName] = useState('');
+  const [roomName] = useState('Recording Session');
   const [userName, setUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
-  const [showPreJoin, setShowPreJoin] = useState(false);
-  const [createdRoomId, setCreatedRoomId] = useState('');
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [_authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -65,8 +61,8 @@ export default function CreateRoomPage(): ReactElement {
   }, []);
 
   const handleCreateRoom = useCallback(async () => {
-    if (!roomName.trim() || !userName.trim()) {
-      setError('Please enter both room name and your name');
+    if (!userName.trim()) {
+      setError('Please enter your name');
       return;
     }
 
@@ -80,227 +76,136 @@ export default function CreateRoomPage(): ReactElement {
     setError('');
 
     try {
-      const response = await createRoom(roomName.trim(), authToken);
-      setCreatedRoomId(response.room_id);
-      setShowPreJoin(true);
-      setIsCreating(false);
+      const response = await createRoom(authToken);
+
+      sessionStorage.setItem(
+        'pendingRoom',
+        JSON.stringify({
+          roomId: response.room_id,
+          roomName: roomName,
+          userName: userName.trim(),
+          isHost: true,
+        })
+      );
+
+      navigate(`/prejoin/${response.room_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room. Please try again.');
       setIsCreating(false);
     }
-  }, [roomName, userName]);
-
-  const handleJoinWithSettings = useCallback(
-    async (settings: JoinSettings) => {
-      setIsCreating(true);
-      setError('');
-
-      try {
-        const joinResponse = await joinRoom(createdRoomId, userName.trim());
-
-        sessionStorage.setItem(
-          'currentRoom',
-          JSON.stringify({
-            roomId: createdRoomId,
-            roomName: roomName.trim(),
-            userName: userName.trim(),
-            participantId: joinResponse.participant_id,
-            token: joinResponse.token,
-            isHost: true,
-            createdAt: new Date().toISOString(),
-            mediaSettings: settings,
-          })
-        );
-
-        navigate(`/recording/${createdRoomId}`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to join room');
-        setIsCreating(false);
-        setShowPreJoin(false);
-      }
-    },
-    [createdRoomId, roomName, userName, navigate]
-  );
-
-  const handleCancelPreJoin = useCallback(() => {
-    setShowPreJoin(false);
-    setCreatedRoomId('');
-  }, []);
+  }, [userName, roomName, navigate]);
 
   if (isCheckingAuth) {
     return (
-      <div className="create-room-page">
-        <div className="room-card">
-          <div className="room-card-header">
-            <h1>Loading...</h1>
+      <AbstractBackground>
+        <div className="create-room-page">
+          <div className="room-card">
+            <div className="room-card-header">
+              <h1>Loading...</h1>
+            </div>
           </div>
         </div>
-      </div>
+      </AbstractBackground>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="create-room-page">
-        <div className="room-card">
-          <div className="room-card-header">
-            <h1>Founder Member Login</h1>
-            <p>Login to create recording rooms</p>
-          </div>
+      <AbstractBackground>
+        <div className="login-page">
+          <div className="login-content">
+            <div className="login-header">
+              <h1 className="login-title">OKARIN</h1>
+              <p className="login-subtitle">Founder member login</p>
+            </div>
 
-          <div className="room-form">
-            <div className="form-group">
-              <label htmlFor="email" className="form-label">
-                Email
-              </label>
-              <Input
+            <div className="login-form">
+              <input
                 id="email"
                 type="email"
-                placeholder="your@email.com"
+                placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoggingIn}
-                className="input"
+                className="login-input"
+                autoFocus
               />
-            </div>
 
-            <div className="form-group">
-              <label htmlFor="password" className="form-label">
-                Password
-              </label>
-              <Input
+              <input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoggingIn}
-                className="input"
+                className="login-input"
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
+
+              {error && (
+                <div className="login-error">
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleLogin}
+                disabled={isLoggingIn}
+                className="login-btn login-btn-primary"
+              >
+                {isLoggingIn ? 'Logging in...' : 'Login'}
+              </button>
             </div>
-
-            {error && (
-              <div className="alert alert-error">
-                <p>{error}</p>
-              </div>
-            )}
-          </div>
-
-          <div className="room-actions">
-            <Button
-              variant="primary"
-              className="btn btn-primary btn-full"
-              onClick={handleLogin}
-              disabled={isLoggingIn}
-            >
-              {isLoggingIn ? 'Logging in...' : 'Login'}
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="btn btn-ghost btn-full"
-              onClick={() => navigate('/')}
-              disabled={isLoggingIn}
-            >
-              Back to Home
-            </Button>
           </div>
         </div>
-      </div>
+      </AbstractBackground>
     );
   }
 
   return (
-    <>
-      {showPreJoin && (
-        <PreJoinScreen
-          roomName={roomName}
-          userName={userName}
-          onJoin={handleJoinWithSettings}
-          onCancel={handleCancelPreJoin}
-        />
-      )}
-      <div className="create-room-page">
-        <div className="room-card">
-          <div className="room-card-header">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h1>Create Recording Room</h1>
-                <p>Logged in as {authUser?.name}</p>
-              </div>
-              <Button variant="ghost" onClick={handleLogout} style={{ padding: '8px 12px' }}>
-                Logout
-              </Button>
-            </div>
+    <AbstractBackground>
+      <div className="login-page">
+        <div className="login-content">
+          <div className="login-header">
+            <h1 className="login-title">OKARIN</h1>
+            <p className="login-subtitle">Create a recording room</p>
           </div>
 
-          <div className="room-form">
-            <div className="form-group">
-              <label htmlFor="roomName" className="form-label">
-                Room Name
-              </label>
-              <Input
-                id="roomName"
-                type="text"
-                placeholder="e.g., Episode 42 Recording"
-                value={roomName}
-                onChange={(e) => setRoomName(e.target.value)}
-                disabled={isCreating}
-                className="input"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="userName" className="form-label">
-                Your Name
-              </label>
-              <Input
-                id="userName"
-                type="text"
-                placeholder="e.g., John Doe"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                disabled={isCreating}
-                className="input"
-              />
-            </div>
+          <div className="login-form">
+            <input
+              id="userName"
+              type="text"
+              placeholder="Your name"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              disabled={isCreating}
+              className="login-input"
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
+              autoFocus
+            />
 
             {error && (
-              <div className="alert alert-error">
+              <div className="login-error">
                 <p>{error}</p>
               </div>
             )}
-          </div>
 
-          <div className="room-actions">
-            <Button
-              variant="primary"
-              className="btn btn-primary btn-full"
+            <button
               onClick={handleCreateRoom}
               disabled={isCreating}
+              className="login-btn login-btn-primary"
             >
-              {isCreating ? 'Creating Room...' : 'Create Room'}
-            </Button>
+              {isCreating ? 'Creating...' : 'Create Room'}
+            </button>
 
-            <Button
-              variant="ghost"
-              className="btn btn-ghost btn-full"
-              onClick={() => navigate('/')}
-              disabled={isCreating}
-            >
-              Back to Home
-            </Button>
-          </div>
+            <div className="login-separator"></div>
 
-          <div className="room-info">
-            <p>
-              Once created, you&apos;ll receive a Room ID that others can use to join your recording
-              session.
-            </p>
+            <button onClick={handleLogout} className="login-btn">
+              Logout
+            </button>
           </div>
         </div>
       </div>
-    </>
+    </AbstractBackground>
   );
 }

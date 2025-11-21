@@ -1,10 +1,10 @@
 [package]
 name = "okarin-desktop"
 version = "0.1.0"
-description = "Okarin Desktop Application"
-authors = ["Ugo ROSERAT"]
+description = "Multi-track podcast recording app - capture each participant as a separate file"
+authors = ["Ugo ROSERAT <roserat.ugo@gmail.com>"]
 license = "MIT"
-repository = ""
+repository = "https://github.com/roseratugo/okarin"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,7 +13,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"

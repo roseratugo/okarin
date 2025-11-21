@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactElement } from 'react';
-import { Button } from '@okarin/ui';
+import { Button } from '../components/ui';
 
 export default function MediaTest(): ReactElement {
   const videoRef = useRef<HTMLVideoElement>(null);

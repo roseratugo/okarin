@@ -61,7 +61,7 @@ export default function Navigation(): ReactElement {
       ),
     },
     {
-      path: '/room/join',
+      path: '/',
       label: 'Join Room',
       icon: (
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

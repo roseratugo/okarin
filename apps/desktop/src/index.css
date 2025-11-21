@@ -1,7 +1,16 @@
 @import './styles/global.css';
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Fonts */
+  --font-display: 'Amatic SC', cursive;
+  --font-body: 'Poppins', system-ui, sans-serif;
+
+  /* Colors - Gradient */
+  --color-primary: #2a3fff;
+  --color-primary-dark: #0b155e;
+
+  /* Apply fonts */
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
 
@@ -16,9 +25,24 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: transparent;
+}
+
+html {
+  background: transparent;
 }
 
 #root {
   width: 100%;
   height: 100vh;
+}
+
+/* Draggable area for window movement */
+.drag-region {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 9999;
 }
