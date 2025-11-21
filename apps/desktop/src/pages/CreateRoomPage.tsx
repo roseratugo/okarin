@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AbstractBackground } from '../components/ui';
-import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
-import { createRoom, joinRoom, login, getMe, AuthUser } from '../lib/signalingApi';
+import { createRoom, login, getMe, AuthUser } from '../lib/signalingApi';
 import './CreateRoomPage.css';
 
 export default function CreateRoomPage(): ReactElement {
@@ -11,8 +10,6 @@ export default function CreateRoomPage(): ReactElement {
   const [userName, setUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
-  const [showPreJoin, setShowPreJoin] = useState(false);
-  const [createdRoomId, setCreatedRoomId] = useState('');
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -80,51 +77,23 @@ export default function CreateRoomPage(): ReactElement {
 
     try {
       const response = await createRoom(authToken);
-      setCreatedRoomId(response.room_id);
-      setShowPreJoin(true);
-      setIsCreating(false);
+
+      sessionStorage.setItem(
+        'pendingRoom',
+        JSON.stringify({
+          roomId: response.room_id,
+          roomName: roomName,
+          userName: userName.trim(),
+          isHost: true,
+        })
+      );
+
+      navigate(`/prejoin/${response.room_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room. Please try again.');
       setIsCreating(false);
     }
-  }, [userName]);
-
-  const handleJoinWithSettings = useCallback(
-    async (settings: JoinSettings) => {
-      setIsCreating(true);
-      setError('');
-
-      try {
-        const joinResponse = await joinRoom(createdRoomId, userName.trim());
-
-        sessionStorage.setItem(
-          'currentRoom',
-          JSON.stringify({
-            roomId: createdRoomId,
-            roomName: roomName.trim(),
-            userName: userName.trim(),
-            participantId: joinResponse.participant_id,
-            token: joinResponse.token,
-            isHost: true,
-            createdAt: new Date().toISOString(),
-            mediaSettings: settings,
-          })
-        );
-
-        navigate(`/recording/${createdRoomId}`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to join room');
-        setIsCreating(false);
-        setShowPreJoin(false);
-      }
-    },
-    [createdRoomId, roomName, userName, navigate]
-  );
-
-  const handleCancelPreJoin = useCallback(() => {
-    setShowPreJoin(false);
-    setCreatedRoomId('');
-  }, []);
+  }, [userName, roomName, navigate]);
 
   if (isCheckingAuth) {
     return (
@@ -195,14 +164,6 @@ export default function CreateRoomPage(): ReactElement {
 
   return (
     <AbstractBackground>
-      {showPreJoin && (
-        <PreJoinScreen
-          roomName={roomName}
-          userName={userName}
-          onJoin={handleJoinWithSettings}
-          onCancel={handleCancelPreJoin}
-        />
-      )}
       <div className="login-page">
         <div className="login-content">
           <div className="login-header">

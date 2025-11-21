@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import UpdateChecker from './components/UpdateChecker';
 import CreateRoomPage from './pages/CreateRoomPage';
 import JoinRoomPage from './pages/JoinRoomPage';
+import PreJoinPage from './pages/PreJoinPage';
 import RecordingPage from './pages/RecordingPage';
 import NotFoundPage from './pages/NotFoundPage';
 import TestPreJoin from './pages/TestPreJoin';
@@ -36,6 +37,7 @@ function App(): ReactElement {
         <Route element={<Layout />}>
           <Route path="/" element={<JoinRoomPage />} />
           <Route path="/create" element={<CreateRoomPage />} />
+          <Route path="/prejoin/:roomId" element={<PreJoinPage />} />
 
           <Route
             path="/recording/:roomId"

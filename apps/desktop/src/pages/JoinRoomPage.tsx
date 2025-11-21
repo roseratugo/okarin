@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, type ReactElement } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AbstractBackground } from '../components/ui';
-import PreJoinScreen, { JoinSettings } from '../components/PreJoinScreen';
-import { joinRoom, getRoomInfo, getMe } from '../lib/signalingApi';
+import { getRoomInfo, getMe } from '../lib/signalingApi';
 import './JoinRoomPage.css';
 
 export default function JoinRoomPage(): ReactElement {
@@ -20,8 +19,6 @@ export default function JoinRoomPage(): ReactElement {
   const [userName, setUserName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
-  const [showPreJoin, setShowPreJoin] = useState(false);
-  const [roomName, setRoomName] = useState('');
   const [step, setStep] = useState<1 | 2>(roomIdFromUrl ? 2 : 1);
 
   const roomId = otpValues.join('');
@@ -104,9 +101,17 @@ export default function JoinRoomPage(): ReactElement {
 
     try {
       const roomInfo = await getRoomInfo(roomId.trim());
-      setRoomName(roomInfo.name);
-      setShowPreJoin(true);
-      setIsJoining(false);
+
+      sessionStorage.setItem(
+        'pendingRoom',
+        JSON.stringify({
+          roomId: roomId.trim(),
+          roomName: roomInfo.name,
+          userName: userName.trim(),
+        })
+      );
+
+      navigate(`/prejoin/${roomId.trim()}`);
     } catch (err) {
       setError('Failed to join room. Please check the Room ID and try again.');
       console.error('Error joining room:', err);
@@ -114,49 +119,8 @@ export default function JoinRoomPage(): ReactElement {
     }
   };
 
-  const handleJoinWithSettings = async (settings: JoinSettings) => {
-    setIsJoining(true);
-    setError('');
-
-    try {
-      const response = await joinRoom(roomId.trim(), userName.trim());
-
-      sessionStorage.setItem(
-        'currentRoom',
-        JSON.stringify({
-          roomId: roomId.trim(),
-          roomName: roomName || `Room ${roomId}`,
-          userName: userName.trim(),
-          participantId: response.participant_id,
-          token: response.token,
-          isHost: false,
-          joinedAt: new Date().toISOString(),
-          mediaSettings: settings,
-        })
-      );
-
-      navigate(`/recording/${roomId.trim()}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join room');
-      setIsJoining(false);
-      setShowPreJoin(false);
-    }
-  };
-
-  const handleCancelPreJoin = () => {
-    setShowPreJoin(false);
-  };
-
   return (
     <AbstractBackground>
-      {showPreJoin && (
-        <PreJoinScreen
-          roomName={roomName || `Room ${roomId.toUpperCase()}`}
-          userName={userName}
-          onJoin={handleJoinWithSettings}
-          onCancel={handleCancelPreJoin}
-        />
-      )}
       <div className="join-room-page">
         <div className="join-content">
           <div className="join-header">

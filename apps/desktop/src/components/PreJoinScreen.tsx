@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, ReactElement } from 'react';
-import { Button } from './ui';
 import AudioVisualizer from './AudioVisualizer';
 import DeviceSelector from './DeviceSelector';
 import { useSettingsStore } from '../stores';
@@ -259,12 +258,12 @@ export default function PreJoinScreen({
         )}
 
         <div className="prejoin-actions">
-          <Button variant="ghost" onClick={handleCancel} className="btn btn-ghost">
+          <button onClick={handleCancel} className="prejoin-btn">
             Cancel
-          </Button>
-          <Button variant="primary" onClick={handleJoin} className="btn btn-primary">
+          </button>
+          <button onClick={handleJoin} className="prejoin-btn prejoin-btn-primary">
             Join Room
-          </Button>
+          </button>
         </div>
       </div>
     </div>
